@@ -48,12 +48,13 @@ Use the same resource that created the item to access it. [trace_id=...]
                     └─────────────────────────────────┘
 ```
 
-1. **Zero Latency on Normal Turns**: As long as requests hit the same backend, requests pass through unmodified with maximum performance and KV cache hits.
+1. **Transparent Normal Turns**: Requests preserve their conversation state and original bytes unless image pruning or resource-mismatch recovery requires a change, retaining upstream cache eligibility.
 2. **Instant Self-Healing Fallback**: When Azure OpenAI returns a 400 Resource Mismatch (or an SSE `response.failed` mismatch), the proxy catches the error, converts the payload into a self-contained stateless format (retaining complete conversation history while pruning excess historical screenshots past 35 images), and immediately resubmits.
 3. **Pre-Commit SSE Priming & Rate-Limit Recovery**: Buffers initial `200 OK` `text/event-stream` setup frames long enough to catch early `rate_limit_exceeded` / `response.failed` / empty streams before committing headers to Codex, coordinates a shared cooldown + stagger across concurrent subagent calls, and honors `Retry-After` / reset hints before retrying.
 4. **Windows & DNS Resilience**: Provides resilient DNS fallback (`8.214.160.125`, `8.214.161.192`), TCP keep-alive hooks, and a Python 3.12 Windows `ProactorEventLoop` `_call_connection_lost` guard (`WinError 10054`).
 5. **Codex Keeps Streaming**: Codex receives clean `text/event-stream` tokens and `: ping` heartbeats with far fewer interruptions.
 6. **Cancellation Cleanup**: Releases upstream responses even when a client disconnects or downstream delivery fails, preventing leaked connections from exhausting HTTPX's pool.
+7. **Native Acceleration**: Uses ISA-L gzip and Uvicorn's native HTTP parser, prepares the connection pool during startup, and avoids redundant copying and timer allocation while draining buffered SSE data.
 
 ---
 
@@ -63,7 +64,7 @@ For a complete walkthrough, see the [Windows installation guide](docs/windows-in
 
 ### 1. Requirements
 - Python 3.10+
-- Dependencies: `fastapi`, `uvicorn`, `httpx` (installed automatically by `start-proxy.ps1`)
+- Dependencies: `fastapi`, `uvicorn`, `httpx`, `isal`, `httptools` (installed automatically by `start-proxy.ps1` or `service.py` when missing)
 
 ### 2. Quick Start (Interactive or Headless Background)
 ```powershell
@@ -135,9 +136,25 @@ PROXY_REQUEST_GZIP=1
 PROXY_REQUEST_GZIP_MIN_BYTES=262144
 ```
 
-Compression is disabled by default. Large requests are sampled for compressibility before gzip level 1 runs in a worker thread; poorly compressible data keeps its original encoding. The compressed body is reused across retries and rebuilt after recovery changes the payload. Existing `Content-Encoding` headers are preserved. Restart the proxy after changing these settings; set `PROXY_REQUEST_GZIP=0` if the upstream rejects compressed requests.
+Compression is disabled by default. Large requests are sampled for compressibility before ISA-L gzip level 1 runs in a worker thread; poorly compressible data keeps its original encoding. Direct Python usage falls back to standard-library gzip when ISA-L is unavailable. The compressed body is reused across retries and rebuilt after recovery changes the payload. Existing `Content-Encoding` headers are preserved. Restart the proxy after changing these settings; set `PROXY_REQUEST_GZIP=0` if the upstream rejects compressed requests.
 
-`/_health` reports whether compression is enabled and its minimum body size. `/_stats` includes `gzip_payloads`, `gzip_input_bytes`, and `gzip_output_bytes`: these count newly prepared compressed payload versions, so retry traffic is excluded.
+`/_health` reports whether compression is enabled, its minimum body size, `request_gzip_backend` (`isal` or `stdlib`), and `connection_pool_initialized`. `/_stats` includes `gzip_payloads`, `gzip_input_bytes`, and `gzip_output_bytes`: these count newly prepared compressed payload versions, so retry traffic is excluded.
+
+## Latency tuning and validation
+
+Install all pinned dependencies with `python -m pip install -r requirements.txt`, including when updating an existing checkout. Uvicorn selects `httptools` with its default `--http auto` setting. The supplied launchers use this setting and prepare the asynchronous HTTP client before accepting requests; startup preparation does not send an upstream request or store credentials.
+
+Keep `PROXY_VERBOSE=0` for normal use to suppress per-request informational logging. This is the example configuration's default; warnings and errors remain available. Set it to `1` while diagnosing a problem. For an upstream that accepts compressed requests, the optional gzip settings above reduce large uploads without changing the decoded request body.
+
+The following measurements compare the previous payload-reuse implementation with native acceleration on one Windows PC, using the complete loopback HTTP/SSE path and a synthetic upstream. Both variants used optional request gzip; the native variant also used minimal logging. The first request was measured once per server launch; other rows are medians of 40 requests after warm-up.
+
+| Scenario | Previous implementation | Native acceleration |
+| --- | ---: | ---: |
+| First request after server startup | 688.4 ms | 18.8 ms |
+| Large tool history | 49.5 ms | 28.9 ms |
+| Repeated short request | 11.4 ms | 12.0 ms |
+
+These numbers measure local time to the first output event, not Internet or AgentRouter response time, and are not a guarantee for another machine. Cancellation checks also covered 60 interrupted streams with no remaining upstream requests or pool timeouts, followed by a successful request.
 
 ## Health, Diagnostics & Tests
 

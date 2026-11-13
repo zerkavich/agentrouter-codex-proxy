@@ -182,29 +182,29 @@ def _is_port_busy(port: int, host: str = "127.0.0.1") -> bool:
 
 
 def _ensure_dependencies(worker_python: str, logger: RotatingFileLogger) -> bool:
-    importlib_check = subprocess.run(
-        [
-            worker_python,
-            "-c",
-            "import importlib.util, sys; "
-            "sys.exit(3 if any(importlib.util.find_spec(m) is None for m in ('fastapi','uvicorn','httpx')) else 0)",
-        ],
+    check_cmd = [worker_python, "-c", "import fastapi, uvicorn, httpx, isal.igzip, httptools"]
+    dependency_check = subprocess.run(
+        check_cmd,
         **_subprocess_kwargs(pipe_output=True),
         timeout=30,
     )
-    if importlib_check.returncode == 0:
+    if dependency_check.returncode == 0:
         return True
 
     req_path = ROOT / "requirements.txt"
     if not req_path.is_file():
-        logger.write("fail ", "missing dependencies (fastapi/uvicorn/httpx) and requirements.txt not found")
+        logger.write("fail ", "missing dependencies (fastapi/uvicorn/httpx/isal/httptools) and requirements.txt not found")
         return False
 
-    logger.write("warn ", "missing dependencies (fastapi/uvicorn/httpx); installing from requirements.txt")
+    logger.write("warn ", "missing dependencies (fastapi/uvicorn/httpx/isal/httptools); installing from requirements.txt")
     cmd = [worker_python, "-m", "pip", "install", "--disable-pip-version-check", "-q", "-r", str(req_path)]
     proc = subprocess.run(cmd, **_subprocess_kwargs(pipe_output=True), timeout=180)
     if proc.returncode != 0:
         logger.write("fail ", f"pip install failed (exit {proc.returncode}): {(proc.stdout or '')[:300]}")
+        return False
+    dependency_check = subprocess.run(check_cmd, **_subprocess_kwargs(pipe_output=True), timeout=30)
+    if dependency_check.returncode != 0:
+        logger.write("fail ", "dependencies still unavailable after installation")
         return False
     logger.write("ok   ", "dependencies installed")
     return True

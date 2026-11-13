@@ -204,12 +204,12 @@ if ($Update) {
 # ---------------------------------------------------------------------------
 # 3. Verify dependencies
 # ---------------------------------------------------------------------------
-Write-Step 'Verifying dependencies (fastapi, uvicorn, httpx)'
+Write-Step 'Verifying dependencies (fastapi, uvicorn, httpx, isal, httptools)'
 
 $checkScript = @'
 import importlib, sys
 missing = []
-for mod in ("fastapi", "uvicorn", "httpx"):
+for mod in ("fastapi", "uvicorn", "httpx", "isal.igzip", "httptools"):
     try:
         m = importlib.import_module(mod)
         print(f"  {mod:<8} {getattr(m, '__version__', 'unknown')}")

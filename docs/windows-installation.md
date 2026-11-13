@@ -15,11 +15,11 @@ For startup under `LOCAL SERVICE`, install Python **for all users** in a machine
 
 ## 2. Download the proxy and install its dependencies
 
-For the cancellation fix in this pull request, clone its feature branch:
+Clone this fork's `main` branch, which includes cancellation cleanup and native latency improvements:
 
 ```powershell
 $proxyRoot = Join-Path $env:LOCALAPPDATA 'AgentRouterCodexProxy'
-git clone --branch fix/cancelled-stream-connection-leak https://github.com/zerkavich/agentrouter-codex-proxy.git $proxyRoot
+git clone --branch main https://github.com/zerkavich/agentrouter-codex-proxy.git $proxyRoot
 if ($LASTEXITCODE -ne 0) { throw 'Clone failed; check the destination and repository URL.' }
 Set-Location -LiteralPath $proxyRoot
 py -3.12 -m venv .venv
@@ -29,9 +29,9 @@ if ($LASTEXITCODE -ne 0) { throw 'Installing dependencies failed.' }
 if (-not (Test-Path -LiteralPath '.env')) { Copy-Item -LiteralPath '.env.example' -Destination '.env' }
 ```
 
-Use an installed Python version instead of `-3.12` if necessary. Once the fix is merged, you can clone `https://github.com/fogydes/agentrouter-codex-proxy.git` without `--branch`.
+Use an installed Python version instead of `-3.12` if necessary. When updating an existing checkout, also run `python -m pip install -r requirements.txt` with its virtual-environment interpreter so the native dependencies are installed.
 
-In `.env`, keep `AGENTROUTER_UPSTREAM=https://agentrouter.org` and `PROXY_PORT=8788`. Set `PROXY_AUTO_UPDATE=0` when testing a fork or maintaining a reviewed installation. Codex normally forwards its own Authorization header, so no API key needs to be stored in the proxy's `.env`.
+In `.env`, keep `AGENTROUTER_UPSTREAM=https://agentrouter.org`, `PROXY_PORT=8788` and `PROXY_VERBOSE=0`. Minimal logging suppresses per-request informational output while retaining warnings and errors. Set `PROXY_AUTO_UPDATE=0` when maintaining a reviewed installation. Codex normally forwards its own Authorization header, so no API key needs to be stored in the proxy's `.env`.
 
 After verifying that your upstream accepts gzip request bodies, you can set `PROXY_REQUEST_GZIP=1` to reduce upload size for large text histories. The default threshold is 262144 bytes and poorly compressible payloads are skipped. Compression is optional and disabled by default; see [request forwarding and compression](../README.md#request-forwarding-and-optional-compression). For the machine-wide installation below, add these settings to the installed app's `.env` and restart its scheduled task.
 
@@ -49,7 +49,7 @@ Leave that window open. In a second PowerShell window:
 Invoke-RestMethod 'http://127.0.0.1:8788/_health'
 ```
 
-Expect `status: ok`, `listen: 127.0.0.1:8788` and a `stats` object. Keep the default loopback address for a proxy shared by accounts on the same PC.
+Expect `status: ok`, `listen: 127.0.0.1:8788`, `request_gzip_backend: isal`, `connection_pool_initialized: true` and a `stats` object. The gzip backend can be available even when request compression is disabled. Keep the default loopback address for a proxy shared by accounts on the same PC.
 
 The `ExecutionPolicy Bypass` above applies to this PowerShell process. It does not change the machine's execution policy.
 
@@ -120,7 +120,7 @@ if (Test-Path -LiteralPath $machineRoot) { throw 'Destination already exists; pr
 if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) { throw 'The machine task already exists.' }
 if (Get-NetTCPConnection -LocalPort 8788 -State Listen -ErrorAction SilentlyContinue) { throw 'Port 8788 is occupied; stop the previous installation first.' }
 
-git clone --branch fix/cancelled-stream-connection-leak https://github.com/zerkavich/agentrouter-codex-proxy.git $appRoot
+git clone --branch main https://github.com/zerkavich/agentrouter-codex-proxy.git $appRoot
 if ($LASTEXITCODE -ne 0) { throw 'Clone failed.' }
 & $machinePython -m venv (Join-Path $appRoot '.venv')
 if ($LASTEXITCODE -ne 0) { throw 'Creating the virtual environment failed.' }
@@ -131,6 +131,7 @@ New-Item -ItemType Directory -Path (Join-Path $appRoot 'logs') -Force | Out-Null
 $proxyEnv = @'
 AGENTROUTER_UPSTREAM=https://agentrouter.org
 PROXY_PORT=8788
+PROXY_VERBOSE=0
 PROXY_AUTO_UPDATE=0
 '@
 [System.IO.File]::WriteAllText((Join-Path $appRoot '.env'), $proxyEnv, (New-Object System.Text.UTF8Encoding($false)))

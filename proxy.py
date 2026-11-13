@@ -48,6 +48,11 @@ import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+try:
+    from isal import igzip as _native_gzip
+except ImportError:
+    _native_gzip = None
+
 # ----------------------------------------------------------------------------
 # Logging Setup
 # ----------------------------------------------------------------------------
@@ -278,6 +283,7 @@ PORT = int(os.environ.get("PROXY_PORT", "8788"))
 LISTEN_HOST, PORT = _extract_uvicorn_bind_overrides(sys.argv, LISTEN_HOST, PORT)
 RETRY_DELAY_MS = int(os.environ.get("PROXY_RETRY_DELAY_MS", "300"))
 VERBOSE = os.environ.get("PROXY_VERBOSE", "1") not in ("0", "", "false", "False")
+logging.getLogger("httpx").setLevel(logging.INFO if VERBOSE else logging.WARNING)
 
 # Rate-limit / SSE priming configuration
 RATE_LIMIT_BASE_DELAY_S = float(os.environ.get("PROXY_RATE_LIMIT_BASE_S", "2.0"))
@@ -798,6 +804,10 @@ async def _app_lifespan(_: FastAPI):
             PORT,
         )
     try:
+        # Initialize the async backend, TLS contexts, and pool before user traffic.
+        # Authentication remains per request; this does not contact upstream.
+        with anyio.CancelScope():
+            get_shared_client()
         yield
     finally:
         global _SHARED_CLIENT
@@ -846,6 +856,8 @@ async def health():
         "max_images_per_request": MAX_IMAGES_PER_REQUEST,
         "request_gzip_enabled": REQUEST_GZIP_ENABLED,
         "request_gzip_min_bytes": REQUEST_GZIP_MIN_BYTES,
+        "request_gzip_backend": "isal" if _native_gzip is not None else "stdlib",
+        "connection_pool_initialized": _SHARED_CLIENT is not None and not _SHARED_CLIENT.is_closed,
         "listen": f"{LISTEN_HOST}:{PORT}",
         "uptime_seconds": uptime_s,
         "upstream": UPSTREAM,
@@ -884,6 +896,14 @@ async def _sse_producer(
     except Exception as exc:
         producer_exc.append(exc)
         await queue.put(None)
+
+
+async def _next_sse_chunk(queue: asyncio.Queue, timeout_s: float) -> Optional[bytes]:
+    """Drain already buffered chunks without allocating a task and timer."""
+    try:
+        return queue.get_nowait()
+    except asyncio.QueueEmpty:
+        return await asyncio.wait_for(queue.get(), timeout=timeout_s)
 
 
 async def _close_sse_producer(
@@ -1046,7 +1066,7 @@ async def _prime_responses_sse(
         await _close_sse_producer(upstream_response, producer_task)
         return SSEPrimeResult(status=status, error_code=code, error_message=msg, error_payload=payload)
 
-    async def handle_frame(raw_frame: bytes, trailing_after: bytes) -> Optional[SSEPrimeResult]:
+    async def handle_frame(raw_frame: bytes, trailing_offset: int) -> Optional[SSEPrimeResult]:
         nonlocal saw_setup, grace_deadline
         kind, err_code, err_msg, err_obj = _classify_sse_frame(raw_frame)
         if kind == "ignore":
@@ -1067,10 +1087,10 @@ async def _prime_responses_sse(
             if _is_transient_error(err_code, err_msg):
                 return await abort_result("retry_transient", err_code, err_msg, err_obj)
             # Non-retryable upstream SSE rejection: commit & forward verbatim.
-            return commit_result(trailing_after)
+            return commit_result(bytes(buf[trailing_offset:]))
 
         primed_chunks.append(raw_frame)
-        return commit_result(trailing_after)
+        return commit_result(bytes(buf[trailing_offset:]))
 
     try:
         while True:
@@ -1086,13 +1106,13 @@ async def _prime_responses_sse(
                 return await abort_result("retry_transient", "timeout", "SSE prime timeout waiting for upstream event")
 
             try:
-                chunk = await asyncio.wait_for(queue.get(), timeout=min(remaining, 0.35))
+                chunk = await _next_sse_chunk(queue, min(remaining, 0.35))
             except asyncio.TimeoutError:
                 continue
 
             if chunk is None:
                 if buf:
-                    res = await handle_frame(bytes(buf), b"")
+                    res = await handle_frame(bytes(buf), len(buf))
                     if res is not None:
                         if res.status == "commit":
                             await queue.put(None)
@@ -1105,7 +1125,7 @@ async def _prime_responses_sse(
             for m in SSE_DELIM_RE.finditer(buf):
                 raw_frame = bytes(buf[pos:m.end()])
                 pos = m.end()
-                res = await handle_frame(raw_frame, bytes(buf[pos:]))
+                res = await handle_frame(raw_frame, pos)
                 if res is not None:
                     return res
             if pos > 0:
@@ -1151,7 +1171,7 @@ async def _stream_generator(
 
         while True:
             try:
-                chunk = await asyncio.wait_for(queue.get(), timeout=ping_interval)
+                chunk = await _next_sse_chunk(queue, ping_interval)
                 if chunk is None:
                     break
                 if b"response.completed" in chunk:
@@ -1219,6 +1239,12 @@ def _decode_responses_payload(body: bytes) -> Optional[dict]:
         return None
 
 
+def _compress_request_gzip(content: bytes) -> bytes:
+    if _native_gzip is not None:
+        return _native_gzip.compress(content, compresslevel=1, mtime=0)
+    return gzip.compress(content, compresslevel=1, mtime=0)
+
+
 def _gzip_if_worthwhile(content: bytes) -> bytes:
     # Sample three regions before spending CPU on a whole payload. Already
     # compressed images and encrypted state usually fail this compressibility check.
@@ -1227,9 +1253,9 @@ def _gzip_if_worthwhile(content: bytes) -> bytes:
         return content
     for start in (0, (len(content) - sample_size) // 2, len(content) - sample_size):
         sample = content[start:start + sample_size]
-        if len(gzip.compress(sample, compresslevel=1, mtime=0)) > len(sample) * 0.6:
+        if len(_compress_request_gzip(sample)) > len(sample) * 0.6:
             return content
-    compressed = gzip.compress(content, compresslevel=1, mtime=0)
+    compressed = _compress_request_gzip(content)
     return compressed if len(compressed) <= len(content) * 0.8 else content
 
 
@@ -1350,7 +1376,7 @@ async def handle_responses(request: Request):
 
         if wire_content is None:
             wire_content, headers = await _prepare_upstream_content(req_content, source_headers)
-            if await _client_disconnected(request):
+            if REQUEST_GZIP_ENABLED and len(req_content) >= REQUEST_GZIP_MIN_BYTES and await _client_disconnected(request):
                 return Response(status_code=499)
 
         resp = None
