@@ -136,9 +136,11 @@ PROXY_REQUEST_GZIP=1
 PROXY_REQUEST_GZIP_MIN_BYTES=262144
 ```
 
-Compression is disabled by default. Large requests are sampled for compressibility before ISA-L gzip level 1 runs in a worker thread; poorly compressible data keeps its original encoding. Direct Python usage falls back to standard-library gzip when ISA-L is unavailable. The compressed body is reused across retries and rebuilt after recovery changes the payload. Existing `Content-Encoding` headers are preserved. Restart the proxy after changing these settings; set `PROXY_REQUEST_GZIP=0` if the upstream rejects compressed requests.
+Compression is disabled by default. Large requests are sampled for compressibility before ISA-L gzip level 1 runs in a worker thread; poorly compressible data keeps its original encoding. Direct Python usage falls back to standard-library gzip when ISA-L is unavailable. The compressed body is reused across retries and rebuilt after recovery changes the payload. Existing `Content-Encoding` headers are preserved. Restart the proxy after changing these settings.
 
-`/_health` reports whether compression is enabled, its minimum body size, `request_gzip_backend` (`isal` or `stdlib`), and `connection_pool_initialized`. `/_stats` includes `gzip_payloads`, `gzip_input_bytes`, and `gzip_output_bytes`: these count newly prepared compressed payload versions, so retry traffic is excluded.
+If the upstream rejects proxy-added gzip with HTTP 415, the proxy retries once using the same decoded payload and original headers. That request stays uncompressed during subsequent retries and resource-mismatch recovery. Client-provided encodings are preserved, a second 415 is forwarded, and compression remains enabled for other requests. Set `PROXY_REQUEST_GZIP=0` and restart if the upstream consistently rejects compression, to avoid the extra rejected attempt.
+
+`/_health` reports whether compression is enabled, its minimum body size, `request_gzip_backend` (`isal` or `stdlib`), and `connection_pool_initialized`. `/_stats` includes `gzip_payloads`, `gzip_input_bytes`, and `gzip_output_bytes`: these count newly prepared compressed payload versions, so retry traffic is excluded. `gzip_fallbacks` counts HTTP 415 retries without proxy-added gzip; a successful recovery also increments `successful_recoveries`.
 
 ## Latency tuning and validation
 
@@ -157,6 +159,8 @@ The following measurements compare the previous payload-reuse implementation wit
 These numbers measure local time to the first output event, not Internet or AgentRouter response time, and are not a guarantee for another machine. Cancellation checks also covered 60 interrupted streams with no remaining upstream requests or pool timeouts, followed by a successful request.
 
 ## Health, Diagnostics & Tests
+
+[GitHub Actions](https://github.com/zerkavich/agentrouter-codex-proxy/actions/workflows/tests.yml) runs the test suite on Windows and Linux with Python 3.10 and 3.12 for pushes to `main`, pull requests, and manual runs. Tests use mock or loopback upstreams and require no API credentials.
 
 - **Health check**: `http://127.0.0.1:8788/_health`
 - **Proxy stats**: `http://127.0.0.1:8788/_stats`

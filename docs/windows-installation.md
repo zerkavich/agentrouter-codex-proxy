@@ -35,6 +35,8 @@ In `.env`, keep `AGENTROUTER_UPSTREAM=https://agentrouter.org`, `PROXY_PORT=8788
 
 After verifying that your upstream accepts gzip request bodies, you can set `PROXY_REQUEST_GZIP=1` to reduce upload size for large text histories. The default threshold is 262144 bytes and poorly compressible payloads are skipped. Compression is optional and disabled by default; see [request forwarding and compression](../README.md#request-forwarding-and-optional-compression). For the machine-wide installation below, add these settings to the installed app's `.env` and restart its scheduled task.
 
+An HTTP 415 rejection of proxy-added gzip triggers one automatic retry with the same payload sent uncompressed. The `gzip_fallbacks` counter in `/_stats` records this recovery attempt. If it increases frequently, set `PROXY_REQUEST_GZIP=0` and restart to avoid repeated rejected compression attempts. Encodings supplied by Codex itself are preserved.
+
 ## 3. Start and check the proxy
 
 From the repository directory:

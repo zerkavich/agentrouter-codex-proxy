@@ -459,6 +459,7 @@ STATS = {
     "gzip_payloads": 0,
     "gzip_input_bytes": 0,
     "gzip_output_bytes": 0,
+    "gzip_fallbacks": 0,
     "rate_limits_caught": 0,
     "stream_precommit_retries": 0,
     "rate_limit_wait_seconds_total": 0.0,
@@ -1302,6 +1303,7 @@ async def handle_responses(request: Request):
     req_content = body_bytes
     wire_content = None
     fallback_active = False
+    gzip_fallback_active = False
 
     # Preemptive check: prune excess historical images before sending upstream.
     if active_payload and isinstance(active_payload.get("input"), list):
@@ -1333,7 +1335,7 @@ async def handle_responses(request: Request):
                 active_payload if active_payload is not None else body_json
             )
             req_content = _encode_responses_payload(active_payload)
-            wire_content = None
+            wire_content = req_content if gzip_fallback_active else None
             logger.warning("[Recovery] Activating sanitized stateless payload to bypass cross-resource pinning!")
             return True
         mismatch_attempts += 1
@@ -1400,11 +1402,11 @@ async def handle_responses(request: Request):
                 prime = await _prime_responses_sse(resp, request)
                 if prime.status == "commit":
                     _clear_rate_limit_cooldown()
-                    if fallback_active or transient_retries > 0 or mismatch_attempts > 0:
+                    if fallback_active or gzip_fallback_active or transient_retries > 0 or mismatch_attempts > 0:
                         STATS["successful_recoveries"] += 1
                         logger.info(
-                            "[Success] Request recovered (fallback=%s, retries=%d)!",
-                            fallback_active, transient_retries + mismatch_attempts
+                            "[Success] Request recovered (fallback=%s, gzip_fallback=%s, retries=%d)!",
+                            fallback_active, gzip_fallback_active, transient_retries + mismatch_attempts
                         )
                     downstream = UpstreamStreamingResponse(
                         _stream_generator(
@@ -1489,7 +1491,7 @@ async def handle_responses(request: Request):
                             return _rate_limit_error_response(err_obj, msg, code, suggested_ra, resp_headers)
 
                 _clear_rate_limit_cooldown()
-                if fallback_active or transient_retries > 0 or mismatch_attempts > 0:
+                if fallback_active or gzip_fallback_active or transient_retries > 0 or mismatch_attempts > 0:
                     STATS["successful_recoveries"] += 1
                     logger.info("[Success] Request recovered!")
                 return Response(content=body, status_code=200, headers=resp_headers)
@@ -1498,6 +1500,20 @@ async def handle_responses(request: Request):
             err_body = await resp.aread()
             await resp.aclose()
             err_text = err_body.decode("utf-8", errors="replace")
+
+            if (
+                resp.status_code == 415
+                and wire_content is not req_content
+                and headers.get("content-encoding") == "gzip"
+            ):
+                # Retry only proxy-added encoding, using the current payload.
+                # Keep subsequent retries and stateless recovery plain as well.
+                gzip_fallback_active = True
+                wire_content = req_content
+                headers = source_headers
+                STATS["gzip_fallbacks"] += 1
+                logger.warning("[Request Compression] Upstream HTTP 415; retrying without proxy-added gzip")
+                continue
 
             if is_resource_mismatch_error(resp.status_code, err_text):
                 if activate_stateless_fallback("Upstream 400", err_text):

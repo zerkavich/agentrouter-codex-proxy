@@ -29,14 +29,25 @@ class PayloadForwardingTests(unittest.IsolatedAsyncioTestCase):
         self.gzip_threshold.start()
         self.requests = []
         self.encodings = []
+        self.sent_headers = []
+        self.upstream_responses = []
+        self.closed_before_send = []
         self.responses = []
         proxy.reset_rate_limit_state()
 
         async def upstream(request):
             self.requests.append((request.content, int(request.headers["content-length"])))
             self.encodings.append(request.headers.get("content-encoding"))
-            status, body = self.responses.pop(0)
-            return httpx.Response(status, json=body)
+            self.sent_headers.append(dict(request.headers))
+            self.closed_before_send.append(self.upstream_responses[-1].is_closed if self.upstream_responses else None)
+            item = self.responses.pop(0)
+            if isinstance(item, httpx.Response):
+                response = item
+            else:
+                status, body = item
+                response = httpx.Response(status, json=body)
+            self.upstream_responses.append(response)
+            return response
 
         self.client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
         proxy._SHARED_CLIENT = self.client
@@ -163,6 +174,143 @@ class PayloadForwardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(gzip.decompress(self.requests[0][0]), body)
         self.assertLess(len(self.requests[0][0]), len(body) * 0.8)
         self.assertEqual(proxy.STATS["gzip_payloads"] - before, 1)
+
+    @staticmethod
+    def large_body():
+        return ('{ "model":"synthetic", "input":' + json.dumps("Привет 🌍 " * 40000, ensure_ascii=False)
+                + ', "metadata":{"decimal":0.12345678901234567890123} }\n').encode()
+
+    @staticmethod
+    def unsupported_encoding():
+        return httpx.Response(
+            415, headers={"content-type": "application/json"},
+            stream=httpx.ByteStream(b'{"error":{"message":"Unsupported content encoding"}}'),
+        )
+
+    async def test_gzip_415_retries_original_bytes_and_headers_once(self):
+        body = self.large_body()
+        rejected = self.unsupported_encoding()
+        self.assertFalse(rejected.is_closed)
+        self.responses = [rejected, self.completed()]
+        before = proxy.STATS.copy()
+        with mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", True), mock.patch.object(
+            proxy, "_gzip_if_worthwhile", wraps=proxy._gzip_if_worthwhile,
+        ) as compress:
+            response = await self.forward(body)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.encodings, ["gzip", None])
+        self.assertEqual(gzip.decompress(self.requests[0][0]), body)
+        self.assertEqual(self.requests[1][0], body)
+        self.assertEqual(compress.call_count, 1)
+        self.assertEqual(self.closed_before_send, [None, True])
+        for headers in self.sent_headers:
+            self.assertEqual(headers["authorization"], "Bearer synthetic")
+            self.assertEqual(headers["content-type"], "application/json")
+        self.assertEqual(proxy.STATS["gzip_fallbacks"] - before["gzip_fallbacks"], 1)
+        self.assertEqual(proxy.STATS["successful_recoveries"] - before["successful_recoveries"], 1)
+        self.assertEqual(proxy.STATS["transport_retries"], before["transport_retries"])
+
+    async def test_gzip_415_preserves_sse_bytes_and_closes_upstream(self):
+        body = self.large_body()
+        sse = (
+            b'event: response.created\ndata: {"type":"response.created"}\n\n'
+            b'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"OK"}\n\n'
+            b'event: response.completed\ndata: {"type":"response.completed"}\n\n'
+        )
+        self.responses = [self.unsupported_encoding(), httpx.Response(
+            200, headers={"content-type": "text/event-stream"}, stream=httpx.ByteStream(sse),
+        )]
+        before = proxy.STATS["successful_recoveries"]
+        with mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", True):
+            response = await self.forward(body)
+            delivered = b"".join([chunk async for chunk in response.body_iterator])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(delivered, sse)
+        self.assertEqual(self.encodings, ["gzip", None])
+        self.assertEqual(self.requests[1][0], body)
+        self.assertTrue(all(upstream.is_closed for upstream in self.upstream_responses))
+        self.assertEqual(proxy.STATS["successful_recoveries"] - before, 1)
+
+    async def test_plain_and_client_encoded_415_are_forwarded_without_retry(self):
+        for encoding, body in ((None, b'{"input":"small"}'), ("gzip", gzip.compress(self.large_body(), mtime=0))):
+            with self.subTest(encoding=encoding), mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", True):
+                offset = len(self.requests)
+                before = proxy.STATS["gzip_fallbacks"]
+                self.responses = [self.unsupported_encoding()]
+                response = await self.forward(body, content_encoding=encoding)
+                self.assertEqual(response.status_code, 415)
+                self.assertEqual(len(self.requests) - offset, 1)
+                self.assertEqual(self.requests[-1][0], body)
+                self.assertEqual(self.encodings[-1], encoding)
+                self.assertEqual(proxy.STATS["gzip_fallbacks"], before)
+                self.assertTrue(self.upstream_responses[-1].is_closed)
+
+    async def test_second_415_is_forwarded_without_another_retry(self):
+        body = self.large_body()
+        self.responses = [self.unsupported_encoding(), self.unsupported_encoding()]
+        before = proxy.STATS.copy()
+        with mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", True):
+            response = await self.forward(body)
+        self.assertEqual(response.status_code, 415)
+        self.assertEqual(self.encodings, ["gzip", None])
+        self.assertEqual(self.requests[1][0], body)
+        self.assertEqual(proxy.STATS["gzip_fallbacks"] - before["gzip_fallbacks"], 1)
+        self.assertEqual(proxy.STATS["successful_recoveries"], before["successful_recoveries"])
+
+    async def test_gzip_415_applies_only_to_the_current_request(self):
+        body = self.large_body()
+        self.responses = [self.unsupported_encoding(), self.completed(), self.completed()]
+        with mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", True):
+            first = await self.forward(body)
+            second = await self.forward(body)
+        self.assertEqual((first.status_code, second.status_code), (200, 200))
+        self.assertEqual(self.encodings, ["gzip", None, "gzip"])
+        self.assertEqual(gzip.decompress(self.requests[2][0]), body)
+
+    async def test_gzip_415_preserves_plain_stateless_recovery_in_both_orders(self):
+        payload = {
+            "model": "synthetic", "previous_response_id": "resp_synthetic",
+            "input": [
+                {"type": "reasoning", "encrypted_content": "encrypted synthetic " * 1000},
+                {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Привет " * 60000}]},
+            ],
+        }
+        body = json.dumps(payload, ensure_ascii=False).encode()
+        mismatch = (400, {"error": {"message": "The requested item was created under a different OpenAI resource."}})
+        for rejection_first in (True, False):
+            with self.subTest(rejection_first=rejection_first), mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", True):
+                offset = len(self.requests)
+                self.responses = (
+                    [self.unsupported_encoding(), mismatch, (503, {"error": {"message": "Temporary upstream failure"}}), self.completed()]
+                    if rejection_first else [mismatch, self.unsupported_encoding(), self.completed()]
+                )
+                response = await self.forward(body)
+                sent = [content for content, _ in self.requests[offset:]]
+                encodings = self.encodings[offset:]
+                self.assertEqual(response.status_code, 200)
+                if rejection_first:
+                    self.assertEqual(encodings, ["gzip", None, None, None])
+                    self.assertEqual(sent[1], body)
+                    self.assertEqual(sent[2], sent[3])
+                else:
+                    self.assertEqual(encodings, ["gzip", "gzip", None])
+                    self.assertEqual(gzip.decompress(sent[1]), sent[2])
+                clean = json.loads(sent[-1])
+                self.assertNotIn("previous_response_id", clean)
+                self.assertEqual([item["type"] for item in clean["input"]], ["message"])
+                self.assertEqual(clean["input"][0]["content"][0]["text"], payload["input"][1]["content"][0]["text"])
+
+    async def test_disconnect_after_415_starts_no_retry(self):
+        body = self.large_body()
+        self.responses = [self.unsupported_encoding(), self.completed()]
+        with mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", True), mock.patch.object(
+            proxy, "_client_disconnected", side_effect=[False, False, True],
+        ):
+            response = await self.forward(body)
+        self.assertEqual(response.status_code, 499)
+        self.assertEqual(self.encodings, ["gzip"])
+        self.assertEqual(len(self.responses), 1)
+        self.assertTrue(self.upstream_responses[0].is_closed)
 
     async def test_fallback_rebuilds_gzip_and_removes_header_for_small_body(self):
         for text in ("small", "keep this history " * 25000):
