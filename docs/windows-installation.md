@@ -1,6 +1,6 @@
 # Windows installation
 
-This guide covers Windows 10/11, Codex configuration, background startup, verification, restart and removal. Use Python 3.10 or newer; the proxy and its 24-test suite have been checked with Python 3.12.
+This guide covers Windows 10/11, Codex configuration, background startup, verification, restart and removal. Use Python 3.10 or newer; the proxy and its test suite have been checked with Python 3.12.
 
 ## 1. Install Python and Git
 
@@ -32,6 +32,8 @@ if (-not (Test-Path -LiteralPath '.env')) { Copy-Item -LiteralPath '.env.example
 Use an installed Python version instead of `-3.12` if necessary. Once the fix is merged, you can clone `https://github.com/fogydes/agentrouter-codex-proxy.git` without `--branch`.
 
 In `.env`, keep `AGENTROUTER_UPSTREAM=https://agentrouter.org` and `PROXY_PORT=8788`. Set `PROXY_AUTO_UPDATE=0` when testing a fork or maintaining a reviewed installation. Codex normally forwards its own Authorization header, so no API key needs to be stored in the proxy's `.env`.
+
+After verifying that your upstream accepts gzip request bodies, you can set `PROXY_REQUEST_GZIP=1` to reduce upload size for large text histories. The default threshold is 262144 bytes and poorly compressible payloads are skipped. Compression is optional and disabled by default; see [request forwarding and compression](../README.md#request-forwarding-and-optional-compression). For the machine-wide installation below, add these settings to the installed app's `.env` and restart its scheduled task.
 
 ## 3. Start and check the proxy
 

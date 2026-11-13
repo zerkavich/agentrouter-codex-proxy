@@ -27,6 +27,7 @@ import argparse
 import asyncio
 from contextlib import asynccontextmanager
 import copy
+import gzip
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -289,6 +290,8 @@ SSE_PRIME_CREATED_GRACE_S = float(os.environ.get("PROXY_SSE_PRIME_CREATED_GRACE_
 
 CONNECT_TIMEOUT_S = float(os.environ.get("PROXY_CONNECT_TIMEOUT_S", "20.0"))
 READ_TIMEOUT_S = float(os.environ.get("PROXY_READ_TIMEOUT_S", "600.0"))
+REQUEST_GZIP_ENABLED = os.environ.get("PROXY_REQUEST_GZIP", "0").lower() in ("1", "true", "yes")
+REQUEST_GZIP_MIN_BYTES = max(65536, int(os.environ.get("PROXY_REQUEST_GZIP_MIN_BYTES", "262144")))
 
 CLIENT_TIMEOUT = httpx.Timeout(
     timeout=READ_TIMEOUT_S,
@@ -384,12 +387,12 @@ def prune_excess_images(payload: dict, max_images: int = MAX_IMAGES_PER_REQUEST)
     """
     Finds all image parts across messages, tool calls, and tool outputs.
     If total images > max_images, replaces the oldest images with compact text placeholders,
-    preserving the latest max_images and valid schema.
+    preserving the latest max_images and valid schema. Returns the original payload
+    when no pruning is needed; never mutates it when images must be replaced.
     """
-    clean_data = copy.deepcopy(payload)
-    raw_input = clean_data.get("input")
+    raw_input = payload.get("input")
     if not isinstance(raw_input, list):
-        return clean_data, 0
+        return payload, 0
 
     image_refs = []  # list of (kind, item_idx, field, part_idx)
     for item_idx, item in enumerate(raw_input):
@@ -412,8 +415,9 @@ def prune_excess_images(payload: dict, max_images: int = MAX_IMAGES_PER_REQUEST)
 
     total_images = len(image_refs)
     if total_images <= max_images:
-        return clean_data, 0
+        return payload, 0
 
+    clean_data = copy.deepcopy(payload)
     to_prune = total_images - max_images
     for i in range(to_prune):
         ref = image_refs[i]
@@ -446,6 +450,9 @@ STATS = {
     "successful_recoveries": 0,
     "transport_retries": 0,
     "pool_timeouts": 0,
+    "gzip_payloads": 0,
+    "gzip_input_bytes": 0,
+    "gzip_output_bytes": 0,
     "rate_limits_caught": 0,
     "stream_precommit_retries": 0,
     "rate_limit_wait_seconds_total": 0.0,
@@ -837,6 +844,8 @@ async def health():
         "version": "1.5.0",
         "dns_fallback_active": True,
         "max_images_per_request": MAX_IMAGES_PER_REQUEST,
+        "request_gzip_enabled": REQUEST_GZIP_ENABLED,
+        "request_gzip_min_bytes": REQUEST_GZIP_MIN_BYTES,
         "listen": f"{LISTEN_HOST}:{PORT}",
         "uptime_seconds": uptime_s,
         "upstream": UPSTREAM,
@@ -1181,6 +1190,70 @@ def _rate_limit_error_response(
     return JSONResponse(status_code=429, content={"error": body_err}, headers=out_headers)
 
 
+def _encode_responses_payload(payload: dict) -> bytes:
+    """Encode only modified payloads, without expanding Unicode to ASCII escapes."""
+    text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    try:
+        return text.encode("utf-8")
+    except UnicodeEncodeError:
+        # Preserve the previous serializer's handling of escaped lone surrogates.
+        return json.dumps(payload, separators=(",", ":")).encode("utf-8")
+
+
+_IMAGE_PAYLOAD_MARKER_RE = re.compile(
+    rb'"(?:input_image|computer_screenshot|image_url)"', re.IGNORECASE,
+)
+
+
+def _payload_may_contain_images(body: bytes) -> bool:
+    # JSON quoting excludes words inside escaped text. Unicode escapes can hide
+    # a type or field name, so ambiguous bodies still take the full parsing path.
+    return bool(_IMAGE_PAYLOAD_MARKER_RE.search(body)) or b"\\u" in body
+
+
+def _decode_responses_payload(body: bytes) -> Optional[dict]:
+    try:
+        payload = json.loads(body.decode("utf-8"))
+        return payload if isinstance(payload, dict) else None
+    except Exception:
+        return None
+
+
+def _gzip_if_worthwhile(content: bytes) -> bytes:
+    # Sample three regions before spending CPU on a whole payload. Already
+    # compressed images and encrypted state usually fail this compressibility check.
+    sample_size = min(8192, len(content) // 3)
+    if not sample_size:
+        return content
+    for start in (0, (len(content) - sample_size) // 2, len(content) - sample_size):
+        sample = content[start:start + sample_size]
+        if len(gzip.compress(sample, compresslevel=1, mtime=0)) > len(sample) * 0.6:
+            return content
+    compressed = gzip.compress(content, compresslevel=1, mtime=0)
+    return compressed if len(compressed) <= len(content) * 0.8 else content
+
+
+async def _prepare_upstream_content(content: bytes, source_headers: Dict[str, str]) -> Tuple[bytes, Dict[str, str]]:
+    if (
+        not REQUEST_GZIP_ENABLED or len(content) < REQUEST_GZIP_MIN_BYTES
+        or any(name.lower() == "content-encoding" for name in source_headers)
+    ):
+        return content, source_headers
+    try:
+        compressed = await asyncio.to_thread(_gzip_if_worthwhile, content)
+    except Exception as exc:
+        logger.warning("[Request Compression] %s", describe_upstream_error(exc))
+        return content, source_headers
+    if compressed is content:
+        return content, source_headers
+    headers = dict(source_headers)
+    headers["content-encoding"] = "gzip"
+    STATS["gzip_payloads"] += 1
+    STATS["gzip_input_bytes"] += len(content)
+    STATS["gzip_output_bytes"] += len(compressed)
+    return compressed, headers
+
+
 @app.post("/v1/responses")
 @app.post("/responses")
 async def handle_responses(request: Request):
@@ -1193,21 +1266,22 @@ async def handle_responses(request: Request):
     STATS["responses_requests"] += 1
 
     body_bytes = await request.body()
-    try:
-        body_json = json.loads(body_bytes.decode("utf-8"))
-    except Exception:
-        body_json = None
+    body_json = _decode_responses_payload(body_bytes) if _payload_may_contain_images(body_bytes) else None
 
-    headers = _filter_headers(dict(request.headers))
+    source_headers = _filter_headers(dict(request.headers))
+    headers = source_headers
     upstream_url = f"{UPSTREAM}/v1/responses"
 
     active_payload = body_json
+    req_content = body_bytes
+    wire_content = None
     fallback_active = False
 
     # Preemptive check: prune excess historical images before sending upstream.
     if active_payload and isinstance(active_payload.get("input"), list):
         active_payload, pre_pruned = prune_excess_images(active_payload, max_images=MAX_IMAGES_PER_REQUEST)
         if pre_pruned > 0:
+            req_content = _encode_responses_payload(active_payload)
             STATS["images_pruned_total"] += pre_pruned
             logger.warning(
                 "[Preemptive Image Pruning] Pruned %d historical images (kept %d latest) to prevent 50-image ceiling rejection",
@@ -1221,15 +1295,19 @@ async def handle_responses(request: Request):
     last_failure_response: Optional[Response] = None
 
     def activate_stateless_fallback(source_label: str, detail: str) -> bool:
-        nonlocal fallback_active, active_payload, mismatch_attempts
+        nonlocal fallback_active, active_payload, body_json, mismatch_attempts, req_content, wire_content
         STATS["resource_mismatches_caught"] += 1
         logger.warning("[Resource Mismatch] %s: %s", source_label, detail[:160])
+        if not fallback_active and body_json is None:
+            body_json = _decode_responses_payload(body_bytes)
         if not fallback_active and body_json is not None:
             fallback_active = True
             STATS["stateless_fallbacks_applied"] += 1
             active_payload = sanitize_responses_payload(
                 active_payload if active_payload is not None else body_json
             )
+            req_content = _encode_responses_payload(active_payload)
+            wire_content = None
             logger.warning("[Recovery] Activating sanitized stateless payload to bypass cross-resource pinning!")
             return True
         mismatch_attempts += 1
@@ -1270,7 +1348,10 @@ async def handle_responses(request: Request):
         if not await _wait_for_rate_limit_gate(request):
             return Response(status_code=499)
 
-        req_content = json.dumps(active_payload).encode("utf-8") if active_payload is not None else body_bytes
+        if wire_content is None:
+            wire_content, headers = await _prepare_upstream_content(req_content, source_headers)
+            if await _client_disconnected(request):
+                return Response(status_code=499)
 
         resp = None
         stream_handed_off = False
@@ -1281,7 +1362,7 @@ async def handle_responses(request: Request):
                 method="POST",
                 url=upstream_url,
                 headers=headers,
-                content=req_content,
+                content=wire_content,
                 stream=True,
                 max_retries=5,
             )

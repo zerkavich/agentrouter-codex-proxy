@@ -124,6 +124,21 @@ env_key = "CODEX_GATEWAY_API_KEY"
 
 ---
 
+## Request forwarding and optional compression
+
+Responses requests keep their original bytes until image pruning or resource-mismatch recovery changes the payload. Retries reuse the prepared body. This avoids repeated JSON parsing, copying, and serialization, and preserves UTF-8 text and numeric precision for unchanged requests.
+
+For an upstream that accepts gzip request bodies, enable compression in the proxy's `.env`:
+
+```dotenv
+PROXY_REQUEST_GZIP=1
+PROXY_REQUEST_GZIP_MIN_BYTES=262144
+```
+
+Compression is disabled by default. Large requests are sampled for compressibility before gzip level 1 runs in a worker thread; poorly compressible data keeps its original encoding. The compressed body is reused across retries and rebuilt after recovery changes the payload. Existing `Content-Encoding` headers are preserved. Restart the proxy after changing these settings; set `PROXY_REQUEST_GZIP=0` if the upstream rejects compressed requests.
+
+`/_health` reports whether compression is enabled and its minimum body size. `/_stats` includes `gzip_payloads`, `gzip_input_bytes`, and `gzip_output_bytes`: these count newly prepared compressed payload versions, so retry traffic is excluded.
+
 ## Health, Diagnostics & Tests
 
 - **Health check**: `http://127.0.0.1:8788/_health`

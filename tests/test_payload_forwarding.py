@@ -1,0 +1,282 @@
+"""Wire-level regressions for the unchanged-body fast path and modified payloads."""
+
+import asyncio
+import base64
+import copy
+import gzip
+import json
+from pathlib import Path
+import random
+import sys
+import threading
+import unittest
+from unittest import mock
+
+import httpx
+from starlette.requests import Request
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import proxy
+
+
+class PayloadForwardingTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.previous_client = proxy._SHARED_CLIENT
+        self.previous_stats = proxy.STATS.copy()
+        self.gzip_setting = mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", False)
+        self.gzip_setting.start()
+        self.gzip_threshold = mock.patch.object(proxy, "REQUEST_GZIP_MIN_BYTES", 262144)
+        self.gzip_threshold.start()
+        self.requests = []
+        self.encodings = []
+        self.responses = []
+        proxy.reset_rate_limit_state()
+
+        async def upstream(request):
+            self.requests.append((request.content, int(request.headers["content-length"])))
+            self.encodings.append(request.headers.get("content-encoding"))
+            status, body = self.responses.pop(0)
+            return httpx.Response(status, json=body)
+
+        self.client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+        proxy._SHARED_CLIENT = self.client
+
+    async def asyncTearDown(self):
+        await self.client.aclose()
+        proxy._SHARED_CLIENT = self.previous_client
+        self.gzip_threshold.stop()
+        self.gzip_setting.stop()
+        proxy.STATS.update(self.previous_stats)
+        proxy.reset_rate_limit_state()
+
+    async def forward(self, body, content_encoding=None):
+        first = True
+
+        async def receive():
+            nonlocal first
+            if first:
+                first = False
+                return {"type": "http.request", "body": body, "more_body": False}
+            await asyncio.Event().wait()
+
+        headers = [(b"content-type", b"application/json"),
+                   (b"authorization", b"Bearer synthetic"),
+                   (b"content-length", str(len(body)).encode())]
+        if content_encoding is not None:
+            headers.append((b"content-encoding", content_encoding.encode()))
+        request = Request({
+            "type": "http", "method": "POST", "path": "/v1/responses",
+            "headers": headers,
+            "query_string": b"",
+        }, receive)
+        with mock.patch.object(proxy, "_sleep_unless_disconnected", return_value=True):
+            response = await proxy.handle_responses(request)
+        for sent, length in self.requests:
+            self.assertEqual(length, len(sent))
+        return response
+
+    @staticmethod
+    def completed():
+        return 200, {"id": "synthetic", "status": "completed", "output": []}
+
+    async def test_healthy_request_preserves_bytes_unicode_and_number_precision(self):
+        body = ('{ "model": "synthetic", "stream": true, "input": "Привет 🌍", '
+                '"metadata": {"decimal": 0.12345678901234567890123} }\n').encode()
+        self.responses = [self.completed()]
+        response = await self.forward(body)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.requests[0][0], body)
+
+    async def test_transient_retry_preserves_original_body(self):
+        body = b'{ "model":"synthetic", "stream":true, "input":"retry" }'
+        self.responses = [(503, {"error": {"message": "Temporary upstream failure"}}), self.completed()]
+        response = await self.forward(body)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([sent for sent, _ in self.requests], [body, body])
+
+    async def test_escaped_and_uppercase_image_markers_still_enforce_image_cap(self):
+        payload = {
+            "model": "synthetic", "stream": True, "instructions": "Проверка",
+            "input": [{"type": "message", "role": "user", "content": [
+                {"type": "INPUT_IMAGE", "image_url": "image-0"},
+                {"type": "computer_screenshot", "image_url": "image-1"},
+                {"type": "input_image", "image_url": "image-2"},
+                {"type": "image_url", "image_url": "image-3"},
+            ]}],
+        }
+        original = copy.deepcopy(payload)
+        with mock.patch.object(proxy, "MAX_IMAGES_PER_REQUEST", 2):
+            pruned, count = proxy.prune_excess_images(payload, max_images=2)
+            self.assertEqual(count, 2)
+            self.assertEqual(payload, original)
+            body = json.dumps(payload, ensure_ascii=False).encode()
+            body = body.replace(b"INPUT_IMAGE", b"INPUT_\\u0049MAGE").replace(b'"image_url"', b'"\\u0069mage_url"')
+            self.responses = [self.completed()]
+            response = await self.forward(body)
+        self.assertEqual(response.status_code, 200)
+        sent = self.requests[0][0]
+        self.assertIn("Проверка".encode(), sent)
+        self.assertEqual(json.loads(sent), pruned)
+        remaining = [part["image_url"] for part in json.loads(sent)["input"][0]["content"] if "image_url" in part]
+        self.assertEqual(remaining, ["image-2", "image-3"])
+
+    async def test_lazy_fallback_sanitizes_state_and_reuses_modified_body(self):
+        payload = {
+            "model": "synthetic", "stream": True, "previous_response_id": "resp_synthetic",
+            "input": [
+                {"type": "reasoning", "encrypted_content": "synthetic"},
+                {"type": "function_call", "id": "server-item", "call_id": "call-synthetic", "name": "test", "arguments": "{}"},
+                {"type": "function_call_output", "call_id": "call-synthetic", "output": "Готово"},
+            ],
+        }
+        body = json.dumps(payload, ensure_ascii=False).encode()
+        self.responses = [
+            (400, {"error": {"message": "The requested item was created under a different OpenAI resource."}}),
+            (503, {"error": {"message": "Temporary upstream failure"}}),
+            self.completed(),
+        ]
+        response = await self.forward(body)
+        self.assertEqual(response.status_code, 200)
+        first, second, third = [sent for sent, _ in self.requests]
+        self.assertEqual(first, body)
+        self.assertEqual(second, third)
+        clean = json.loads(second)
+        self.assertNotIn("previous_response_id", clean)
+        self.assertEqual([item["type"] for item in clean["input"]], ["function_call", "function_call_output"])
+        self.assertEqual([item["call_id"] for item in clean["input"]], ["call-synthetic", "call-synthetic"])
+        self.assertNotIn("id", clean["input"][0])
+        self.assertIn("Готово".encode(), second)
+
+    async def test_gzip_preserves_bytes_and_is_prepared_once_across_retries(self):
+        body = ('{ "model":"synthetic", "input":' + json.dumps("Привет 🌍 " * 40000, ensure_ascii=False)
+                + ', "metadata":{"decimal":0.12345678901234567890123} }').encode()
+        self.responses = [(503, {"error": {"message": "Temporary upstream failure"}}), self.completed()]
+        before = proxy.STATS["gzip_payloads"]
+        with mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", True), mock.patch.object(
+            proxy, "_gzip_if_worthwhile", wraps=proxy._gzip_if_worthwhile,
+        ) as compress:
+            response = await self.forward(body)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(compress.call_count, 1)
+        self.assertEqual(self.encodings, ["gzip", "gzip"])
+        self.assertEqual(self.requests[0][0], self.requests[1][0])
+        self.assertEqual(gzip.decompress(self.requests[0][0]), body)
+        self.assertLess(len(self.requests[0][0]), len(body) * 0.8)
+        self.assertEqual(proxy.STATS["gzip_payloads"] - before, 1)
+
+    async def test_fallback_rebuilds_gzip_and_removes_header_for_small_body(self):
+        for text in ("small", "keep this history " * 25000):
+            with self.subTest(large_retained_body=len(text) > 262144):
+                payload = {
+                    "model": "synthetic", "previous_response_id": "resp_synthetic",
+                    "input": [
+                        {"type": "reasoning", "encrypted_content": "encrypted " * 40000},
+                        {"type": "message", "role": "user", "content": [{"type": "input_text", "text": text}]},
+                    ],
+                }
+                body = json.dumps(payload).encode()
+                offset = len(self.requests)
+                self.responses = [
+                    (400, {"error": {"message": "The requested item was created under a different OpenAI resource."}}),
+                    (503, {"error": {"message": "Temporary upstream failure"}}), self.completed(),
+                ]
+                with mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", True):
+                    response = await self.forward(body)
+                self.assertEqual(response.status_code, 200)
+                first, second, third = [sent for sent, _ in self.requests[offset:]]
+                self.assertEqual(gzip.decompress(first), body)
+                self.assertEqual(second, third)
+                encodings = self.encodings[offset:]
+                self.assertEqual(encodings, ["gzip"] + (["gzip"] if len(text) > 262144 else [None]) * 2)
+                clean = json.loads(gzip.decompress(second) if encodings[1] else second)
+                self.assertNotIn("previous_response_id", clean)
+                self.assertEqual(len(clean["input"]), 1)
+                self.assertEqual(clean["input"][0]["content"][0]["text"], text)
+
+    async def test_high_entropy_and_already_encoded_bodies_bypass_compression(self):
+        image = base64.b64encode(random.Random(17).randbytes(450000)).decode()
+        body = json.dumps({"model": "synthetic", "input": [{
+            "type": "message", "role": "user", "content": [{"type": "input_image", "image_url": image}],
+        }]}).encode()
+        encoded = gzip.compress(body, compresslevel=1, mtime=0)
+        self.assertGreater(len(encoded), proxy.REQUEST_GZIP_MIN_BYTES)
+        with mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", True), mock.patch.object(
+            proxy, "_gzip_if_worthwhile", wraps=proxy._gzip_if_worthwhile,
+        ) as compress:
+            self.responses = [self.completed()]
+            self.assertEqual((await self.forward(body)).status_code, 200)
+            self.responses = [self.completed()]
+            self.assertEqual((await self.forward(encoded, content_encoding="gzip")).status_code, 200)
+        self.assertEqual(compress.call_count, 1)
+        self.assertEqual([sent for sent, _ in self.requests], [body, encoded])
+        self.assertEqual(self.encodings, [None, "gzip"])
+
+    async def test_compression_failure_keeps_original_body_and_headers(self):
+        body = json.dumps({"input": "synthetic " * 40000}).encode()
+        self.responses = [self.completed()]
+        with mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", True), mock.patch.object(
+            proxy, "_gzip_if_worthwhile", side_effect=RuntimeError("synthetic compression failure"),
+        ):
+            response = await self.forward(body)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.requests[0][0], body)
+        self.assertEqual(self.encodings, [None])
+
+    async def test_cancellation_during_compression_starts_no_upstream_request(self):
+        body = json.dumps({"input": "synthetic " * 40000}).encode()
+        started = asyncio.Event()
+        finished = asyncio.Event()
+        release = threading.Event()
+        loop = asyncio.get_running_loop()
+
+        def delayed_compression(content):
+            loop.call_soon_threadsafe(started.set)
+            try:
+                release.wait(timeout=5)
+                return gzip.compress(content, compresslevel=1, mtime=0)
+            finally:
+                loop.call_soon_threadsafe(finished.set)
+
+        with mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", True), mock.patch.object(
+            proxy, "_gzip_if_worthwhile", side_effect=delayed_compression,
+        ):
+            task = asyncio.create_task(self.forward(body))
+            try:
+                await asyncio.wait_for(started.wait(), timeout=3)
+                task.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await task
+                self.assertEqual(self.requests, [])
+            finally:
+                release.set()
+                if not task.done():
+                    task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+                if started.is_set():
+                    await asyncio.wait_for(finished.wait(), timeout=3)
+
+    async def test_disconnect_during_preparation_starts_no_upstream_request(self):
+        body = json.dumps({"input": "synthetic " * 40000}).encode()
+        with mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", True), mock.patch.object(
+            proxy, "_client_disconnected", side_effect=[False, True],
+        ):
+            response = await self.forward(body)
+        self.assertEqual(response.status_code, 499)
+        self.assertEqual(self.requests, [])
+
+    async def test_modified_body_preserves_escaped_lone_surrogate(self):
+        payload = {"model": "synthetic", "input": "\ud800", "previous_response_id": "resp_synthetic"}
+        body = json.dumps(payload).encode()
+        self.responses = [
+            (400, {"error": {"message": "The requested item was created under a different OpenAI resource."}}),
+            self.completed(),
+        ]
+        response = await self.forward(body)
+        self.assertEqual(response.status_code, 200)
+        clean = json.loads(self.requests[-1][0])
+        self.assertEqual(clean["input"], "\ud800")
+        self.assertNotIn("previous_response_id", clean)
+
+
+if __name__ == "__main__":
+    unittest.main()
