@@ -71,6 +71,7 @@ For a short Russian walkthrough, see [управление в браузере](
 ### 1. Requirements
 - Python 3.10+
 - Dependencies: `fastapi`, `uvicorn`, `httpx`, `isal`, `httptools` (installed automatically by `start-proxy.ps1` or `service.py` when missing)
+- The optional Codex configuration helper uses `requirements-installer.txt`; it adds no proxy runtime dependency.
 
 ### 2. Quick Start (Interactive or Headless Background)
 ```powershell
@@ -126,10 +127,40 @@ name = "Agentrouter"
 base_url = "http://127.0.0.1:8788/v1"
 wire_api = "responses"
 env_key = "CODEX_GATEWAY_API_KEY"
+
+[memories]
+extract_model = "gpt-6.1-sol"
+consolidation_model = "gpt-6.1-sol"
 ```
 
 > [!NOTE]
 > Ensure your `CODEX_GATEWAY_API_KEY` (or `AGENTROUTER_API_KEY`) is configured in your environment or in `.codex/.env`.
+
+### Codex memory models
+
+`start-proxy.ps1` (except `-Service`) and `install-autostart.ps1` automatically set **missing** memory extraction/consolidation models to `gpt-6.1-sol`. This avoids Codex's default Terra model when your AgentRouter group has no Terra channel. This selects a remote model; no model weights are downloaded. Existing explicit choices, the main model, reasoning effort, provider, credentials and memory enable/disable settings are preserved.
+
+To configure an existing installation without restarting the proxy:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\configure-codex-memory.ps1
+# Preview only; requires the installer dependency to be present:
+.\configure-codex-memory.ps1 -WhatIf_
+# Replace both existing memory choices explicitly:
+.\configure-codex-memory.ps1 -MemoryModel gpt-6.1-sol -OverwriteMemoryModels
+```
+
+The helper follows `CODEX_HOME`, otherwise the current user's `~/.codex/config.toml`; `-CodexConfig <path>` overrides it. Before a change, it saves a byte-verified private `config.toml.memory-*.bak` beside the resolved config. Repeated runs create no extra backups when nothing changes. Reload Codex or use **Developer: Reload Window** in VS Code afterward. The same model/path/overwrite options are available in both Windows launch/install scripts; use `-SkipMemoryModelSetup` to skip this step.
+
+For Linux/macOS or direct Python startup, configure memory once before starting the service:
+
+```bash
+python -m pip install -r requirements-installer.txt
+python configure-codex-memory.py
+# Optional: --config /path/to/config.toml --model gpt-6.1-sol --overwrite --dry-run
+```
+
+Use a Codex version supporting `memories.extract_model` and `memories.consolidation_model`, and a model available through that user's provider. The helper does not enable disabled memories. A machine-wide proxy still needs Codex configuration in each user's own session; `LOCAL SERVICE` never edits user profiles. See the [installation guide](docs/windows-installation.md#codex-memory-models).
 
 ---
 
@@ -212,5 +243,6 @@ These synthetic whole-loopback times include upstream validation. The tool-histo
 - **Logs**: When running as a service (`-Service` or via scheduled task), logs are stored in `logs/proxy.log` (automatically rotates at 1MB).
 - **Tests**:
   ```powershell
+  .\.venv\Scripts\python.exe -m pip install -r requirements.txt -r requirements-installer.txt
   .\.venv\Scripts\python.exe -m unittest discover -s tests -v
   ```

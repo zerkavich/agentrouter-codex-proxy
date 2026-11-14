@@ -4,12 +4,13 @@
     Every path is derived from this script's own location, so the repository
     can be cloned anywhere by any user.
 
-    Does five things, in order:
+    Startup steps, in order:
       0. Refuses to start a second instance on an already-healthy port.
       1. Loads .env if one is present (values are never printed).
       2. Activates .venv if one is present, else falls back to system Python.
       3. Verifies fastapi / uvicorn / httpx are importable.
       4. Verifies a credential exists WITHOUT printing it.
+      4a. Sets missing Codex memory models (except in supervised -Service mode).
       5. Starts uvicorn bound to $BindHost (default 127.0.0.1 loopback only).
 
     Usage:
@@ -20,6 +21,8 @@
       .\start-proxy.ps1 -Background                # launch headless background service (no console window)
       .\start-proxy.ps1 -Update                    # check/apply fast-forward git updates before starting
       .\start-proxy.ps1 -Service                   # supervised, rotating log file
+      .\start-proxy.ps1 -MemoryModel gpt-6.1-sol   # default memory model
+      .\start-proxy.ps1 -SkipMemoryModelSetup     # leave Codex configuration alone
 #>
 
 [CmdletBinding()]
@@ -35,7 +38,12 @@ param(
     [switch]$Service,
     # Hard ceiling per log file. One previous generation is kept as .1, so
     # total on-disk log usage is bounded at roughly 2 x this value.
-    [int]$MaxLogKB = 1024
+    [int]$MaxLogKB = 1024,
+    [ValidateNotNullOrEmpty()]
+    [string]$MemoryModel = 'gpt-6.1-sol',
+    [string]$CodexConfig,
+    [switch]$OverwriteMemoryModels,
+    [switch]$SkipMemoryModelSetup
 )
 
 $ErrorActionPreference = 'Stop'
@@ -263,6 +271,18 @@ if ($keyVar) {
 } else {
     Write-Warn 'No CODEX_GATEWAY_API_KEY / AGENTROUTER_API_KEY set.'
     Write-Warn 'Codex will forward whatever token is set in config.toml or send its own.'
+}
+
+# ---------------------------------------------------------------------------
+# 4a. Configure the interactive user's memory models during setup. The service
+# never writes a Codex profile or installs this helper's dependencies.
+# ---------------------------------------------------------------------------
+if (-not $Service -and -not $SkipMemoryModelSetup) {
+    Write-Step 'Configuring missing Codex memory models'
+    $memoryArguments = @{ Python = $python; MemoryModel = $MemoryModel;
+                          OverwriteMemoryModels = $OverwriteMemoryModels }
+    if ($CodexConfig) { $memoryArguments.CodexConfig = $CodexConfig }
+    & (Join-Path $root 'configure-codex-memory.ps1') @memoryArguments
 }
 
 # ---------------------------------------------------------------------------

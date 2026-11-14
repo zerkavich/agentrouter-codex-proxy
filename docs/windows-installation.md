@@ -24,12 +24,14 @@ if ($LASTEXITCODE -ne 0) { throw 'Clone failed; check the destination and reposi
 Set-Location -LiteralPath $proxyRoot
 py -3.12 -m venv .venv
 if ($LASTEXITCODE -ne 0) { throw 'Creating the virtual environment failed.' }
-& .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+& .\.venv\Scripts\python.exe -m pip install -r requirements.txt -r requirements-installer.txt
 if ($LASTEXITCODE -ne 0) { throw 'Installing dependencies failed.' }
 if (-not (Test-Path -LiteralPath '.env')) { Copy-Item -LiteralPath '.env.example' -Destination '.env' }
 ```
 
 Use an installed Python version instead of `-3.12` if necessary. When updating an existing checkout, also run `python -m pip install -r requirements.txt` with its virtual-environment interpreter so the native dependencies are installed.
+
+`requirements-installer.txt` supplies the TOML editor used only while configuring Codex. It is not imported by the proxy or supervisor.
 
 In `.env`, keep `AGENTROUTER_UPSTREAM=https://agentrouter.org`, `PROXY_PORT=8788` and `PROXY_VERBOSE=0`. Minimal logging suppresses per-request informational output while retaining warnings and errors. Set `PROXY_AUTO_UPDATE=0` when maintaining a reviewed installation. Codex normally forwards its own Authorization header, so no API key needs to be stored in the proxy's `.env`.
 
@@ -44,6 +46,8 @@ For independent keys on a shared PC, keep `PROXY_RATE_LIMIT_SCOPE=credential`. I
 From the repository directory:
 
 ```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\configure-codex-memory.ps1
+if ($LASTEXITCODE -ne 0) { throw 'Codex memory setup failed; fix the reported configuration/access problem first.' }
 & .\.venv\Scripts\python.exe .\service.py --host 127.0.0.1 --port 8788 --no-auto-update --skip-start-update
 ```
 
@@ -84,6 +88,31 @@ env_key = "CODEX_GATEWAY_API_KEY"
 Set `CODEX_GATEWAY_API_KEY` in the **Codex user's environment**, using their own AgentRouter key. Keep credentials out of screenshots, commits and shared proxy configuration. Each Windows account needs its own Codex configuration and credentials, unless those accounts deliberately share a Codex home.
 
 Restart Codex Desktop or use **Developer: Reload Window** in VS Code. A new Codex CLI invocation reads the new configuration. Ask Codex to reply `CODEX_PROXY_OK`; a successful reply checks the authenticated upstream path as well as the local listener.
+
+### Codex memory models
+
+The setup helper fills missing memory model settings with:
+
+```toml
+[memories]
+extract_model = "gpt-6.1-sol"
+consolidation_model = "gpt-6.1-sol"
+```
+
+This prevents background memory work from falling back to Terra on providers where Terra is unavailable. It configures remote API models, without downloading weights. It preserves existing explicit model choices, all other config values and comments, and whether memory is enabled. Use a Codex client supporting these two settings and a model routed by the selected provider.
+
+`start-proxy.ps1` and `install-autostart.ps1` perform this setup automatically for the current Codex user. Supervised `start-proxy.ps1 -Service`, `service.py` and `machine_service.py` do not edit Codex profiles. If the proxy is already running, use the standalone helper:
+
+```powershell
+.\configure-codex-memory.ps1
+.\configure-codex-memory.ps1 -WhatIf_
+.\configure-codex-memory.ps1 -MemoryModel gpt-6.1-sol -OverwriteMemoryModels
+.\configure-codex-memory.ps1 -CodexConfig 'D:\SharedCodex\config.toml'
+```
+
+`-WhatIf_` previews without writing files or installing packages; install `requirements-installer.txt` first if needed. `-OverwriteMemoryModels` explicitly replaces both existing choices. The launcher/installer accepts `-MemoryModel`, `-CodexConfig`, `-OverwriteMemoryModels` and `-SkipMemoryModelSetup`. Without an explicit path, `CODEX_HOME` takes priority over the current user's `~/.codex`.
+
+Each actual change saves a private, byte-verified `config.toml.memory-*.bak` beside the resolved file. No backup is created on an unchanged or preview run. On Windows the helper preserves the existing config's access permissions; backups are readable only by their owner, administrators and SYSTEM. To undo the memory change, restore just these two fields from the backup while keeping newer config edits. Reload Codex / **Developer: Reload Window** afterward. Updating the proxy in the browser does not run this per-user helper.
 
 ## 5. Background startup for one Windows user
 
@@ -131,7 +160,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Clone failed.' }
 & $machinePython -m venv (Join-Path $appRoot '.venv')
 if ($LASTEXITCODE -ne 0) { throw 'Creating the virtual environment failed.' }
 $venvPython = Join-Path $appRoot '.venv\Scripts\python.exe'
-& $venvPython -m pip install -r (Join-Path $appRoot 'requirements.txt')
+& $venvPython -m pip install -r (Join-Path $appRoot 'requirements.txt') -r (Join-Path $appRoot 'requirements-installer.txt')
 if ($LASTEXITCODE -ne 0) { throw 'Installing dependencies failed.' }
 New-Item -ItemType Directory -Path (Join-Path $appRoot 'logs') -Force | Out-Null
 $proxyEnv = @'
@@ -165,6 +194,15 @@ Start-ScheduledTask -TaskName $taskName
 ```
 
 Allow several seconds for startup, then check `/_health`. Run the Codex test from each account after configuring its provider as described in step 4. The shared proxy receives each request's Authorization header; credentials stay with the individual Codex users.
+
+Run memory setup once **in each Codex user's normal session**, including when two accounts share `CODEX_HOME` (a second unchanged run is harmless):
+
+```powershell
+$appRoot = Join-Path $env:ProgramData 'AgentRouterCodexProxy\app'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $appRoot 'configure-codex-memory.ps1')
+```
+
+The administrative install above prepares the helper dependency before protecting the virtual environment. For an existing protected installation that lacks it, an administrator can install `requirements-installer.txt` once, or use the helper with `-Python <your-own-writable-python.exe>`. Do not run profile setup as `LOCAL SERVICE` or assume an administrator's `CODEX_HOME` is another user's config.
 
 For this installation, logs are at `$env:ProgramData\AgentRouterCodexProxy\app\logs\proxy.log`. Browser tuning and update state are stored in a protected sibling `control` directory. The service can modify only 13 explicitly listed update files, the installed manifest and that state directory. The wrapper, recovery bootstrap, `.env`, Python, packages and parent app directory remain read-only to the service.
 

@@ -11,6 +11,7 @@
       .\install-autostart.ps1
       .\install-autostart.ps1 -TaskName AgentRouterCodexProxy -Port 8788
       .\install-autostart.ps1 -WhatIf_        # show the plan, change nothing
+      .\install-autostart.ps1 -SkipMemoryModelSetup
 
     Remove it again with .\uninstall-autostart.ps1
 #>
@@ -22,6 +23,11 @@ param(
     [int]$DelaySeconds = 8,
     [int]$MaxLogKB = 1024,
     [switch]$NoAutoUpdate,
+    [ValidateNotNullOrEmpty()]
+    [string]$MemoryModel = 'gpt-6.1-sol',
+    [string]$CodexConfig,
+    [switch]$OverwriteMemoryModels,
+    [switch]$SkipMemoryModelSetup,
     [switch]$WhatIf_
 )
 
@@ -70,11 +76,23 @@ Write-Host "  action    : $launcher"         -ForegroundColor DarkGray
 Write-Host "  arguments : $arguments"        -ForegroundColor DarkGray
 Write-Host "  workdir   : $root"             -ForegroundColor DarkGray
 Write-Host "  listen    : 127.0.0.1:$Port (loopback only)" -ForegroundColor DarkGray
+if (-not $SkipMemoryModelSetup) {
+    Write-Host '  memories  : configure missing Codex memory models before registration' -ForegroundColor DarkGray
+}
 Write-Host ''
 
 if ($WhatIf_) {
     Write-Host '[ ok  ] -WhatIf_ given: nothing was changed.' -ForegroundColor Yellow
     exit 0
+}
+
+if (-not $SkipMemoryModelSetup) {
+    $memoryArguments = @{ MemoryModel = $MemoryModel;
+                          OverwriteMemoryModels = $OverwriteMemoryModels }
+    $consolePython = Join-Path (Split-Path -Parent $launcher) 'python.exe'
+    if (Test-Path -LiteralPath $consolePython) { $memoryArguments.Python = $consolePython }
+    if ($CodexConfig) { $memoryArguments.CodexConfig = $CodexConfig }
+    & (Join-Path $root 'configure-codex-memory.ps1') @memoryArguments
 }
 
 $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue

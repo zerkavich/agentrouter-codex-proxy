@@ -1,0 +1,2 @@
+# Used only by configure-codex-memory; never imported by the proxy/service.
+tomlkit==0.13.2
