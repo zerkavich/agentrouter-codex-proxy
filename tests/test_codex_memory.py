@@ -33,9 +33,13 @@ def run_ps(directory: Path, script: str) -> subprocess.CompletedProcess:
     runner = directory / "test-runner.ps1"
     # Windows PowerShell 5.1 requires a BOM for Unicode paths in scripts.
     runner.write_text(script, encoding="utf-8-sig")
+    # CI starts Python from PowerShell 7. Let a Windows PowerShell 5.1 child
+    # choose its own built-in modules instead of inheriting PS7-only DLLs.
+    environment = {key: value for key, value in os.environ.items() if key.upper() != "PSMODULEPATH"}
     return subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                            "-File", str(runner)], capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=40,
+                          env=environment,
                           creationflags=0x08000000 if os.name == "nt" else 0)
 
 
@@ -289,12 +293,16 @@ class PowerShellMemoryTests(unittest.TestCase):
         venv.EnvBuilder(with_pip=False).create(isolated)
         interpreter = isolated / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         before = set(isolated.rglob("*"))
+        error_file = self.root / "preview-error.txt"
         script = ("$ErrorActionPreference = 'Stop'\nRemove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue\n" +
-                  f"& {ps_quote(ROOT / 'configure-codex-memory.ps1')} -Python {ps_quote(interpreter)} "
-                  f"-CodexConfig {ps_quote(self.config)} -WhatIf_\n")
+                  f"try {{ & {ps_quote(ROOT / 'configure-codex-memory.ps1')} -Python {ps_quote(interpreter)} "
+                  f"-CodexConfig {ps_quote(self.config)} -WhatIf_ }} catch {{ "
+                  f"$_.Exception.Message | Set-Content -LiteralPath {ps_quote(error_file)} -Encoding UTF8; exit 1 }}\n")
         result = run_ps(self.root, script)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("no packages or files were changed", result.stdout + result.stderr)
+        # Test the exception itself, independent of ANSI styling/line wrapping
+        # in PowerShell 7's human-readable stderr renderer.
+        self.assertIn("no packages or files were changed", error_file.read_text(encoding="utf-8-sig"))
         self.assertFalse(self.config.exists())
         self.assertEqual(list(self.root.glob("*.bak")), [])
         self.assertEqual(set(isolated.rglob("*")), before)
