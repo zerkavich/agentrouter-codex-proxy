@@ -1,18 +1,20 @@
 # Runtime settings and measured results
 
+Version 1.8.0 moves routine management to the [browser panel](browser-control-1.8.0.md): overview, temporary profiling/report export, 23 tuning values, pause/resume, graceful restart and compatible package updates. Browser overrides are saved separately from `.env` and apply after a restart. A receive listener now covers Responses quota waits, sends and body reads, replacing upstream-send polling while preserving the prior compression policy.
+
 Version 1.7.0 adds fair cancellable quota launches, generation-fenced cooldown recovery, elapsed quota waiting and temporary profiling. Use [the diagnostic CLI](diagnostics.md) to watch queues or capture a timing window. PROXY_TIMINGS=0 is the default fast mode; 1 enables persistent capture after restart. Authoritative hints can exceed generated backoff; a request's wait budget never shortens other callers' cooldown.
 
 The 1.6.0 measurements below remain evidence for that earlier release. See the separate [1.7.0 recovery, latency and endurance results](recovery-1.7.0.md).
 
 Version 1.6.0 bounds slow-client buffering and compression work, separates independent credentials' rate-limit gates, and avoids repeatedly compressing requests rejected with HTTP 415. These changes preserve the decoded request body and immediate small-chunk delivery. Image pruning and stateless recovery continue to modify payloads only when their existing rules require it.
 
-A client can leave before the upstream sends response headers. Uvicorn does not automatically cancel that pending handler, so an abandoned connection could previously occupy the pool until the read timeout. The proxy now checks for client disconnect every 350 ms while an upstream send or JSON/error-body read is pending. Completed operations return immediately. A response completed during that check is closed if it was never handed off. Partial uploads are handled without starting upstream work. Models/listing passthrough requests use the same cleanup.
+A client can leave before the upstream sends response headers. Uvicorn does not automatically cancel that pending handler, so an abandoned connection could previously occupy the pool until the read timeout. Version 1.6.0 checked for client disconnect every 350 ms while an upstream send or JSON/error-body read was pending. Version 1.8.0 waits on `http.disconnect` after consuming the request body and joins the receive owner before response handoff. Incomplete-body compatibility callers retain the polling fallback. A response completed during disconnect detection is closed if never handed off. Partial uploads are handled without starting upstream work. Models/listing passthrough requests use the same send/read cleanup.
 
 Upstream admission retains the existing 50-connection limit and each request's pool timeout. Waiters remain outside HTTPcore; an admitted request retains its slot until its response body really closes. A per-pool wrapper also reclaims abandoned CONNECTING or ACTIVE connections with no owning request, under HTTPcore's existing pool lock and cancellation-shielded close. Healthy idle connections and assigned TCP/TLS connections are retained. This wrapper relies on the pinned HTTPcore 1.0.9 internals; dependency upgrades require the real-pool cancellation regressions.
 
 ## Defaults
 
-Set these in the proxy's `.env` and restart its process. On a machine-wide installation, an administrator maintains the installed app's `.env`; individual Codex accounts still supply their own credentials.
+Edit the allowlisted tuning values in the browser's **Settings** section, save and restart. `.env` remains the base configuration; browser overrides are separate. Individual Codex accounts still supply their own credentials.
 
 | Setting | Default | Effect |
 | --- | ---: | --- |

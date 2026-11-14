@@ -1,6 +1,6 @@
 # Windows installation
 
-This guide covers Windows 10/11, Codex configuration, background startup, verification, restart and removal. Use Python 3.10 or newer; the 86-test suite has been checked with Python 3.10 and 3.12. The installed portable Python 3.12 runtime was checked separately with its native packages.
+This guide covers Windows 10/11, Codex configuration, background startup, browser management, verification and removal. Version 1.8.0 has 154 regression tests checked with Python 3.10 and 3.12, including the installed portable Python runtime and its pinned native packages. Node.js is needed only to rebuild the panel; running the proxy needs Python.
 
 ## 1. Install Python and Git
 
@@ -15,7 +15,7 @@ For startup under `LOCAL SERVICE`, install Python **for all users** in a machine
 
 ## 2. Download the proxy and install its dependencies
 
-Clone this fork's `main` branch, which includes cancellation cleanup and native latency improvements:
+Clone this fork's `main` branch, which includes the browser panel and cancellation cleanup:
 
 ```powershell
 $proxyRoot = Join-Path $env:LOCALAPPDATA 'AgentRouterCodexProxy'
@@ -33,18 +33,18 @@ Use an installed Python version instead of `-3.12` if necessary. When updating a
 
 In `.env`, keep `AGENTROUTER_UPSTREAM=https://agentrouter.org`, `PROXY_PORT=8788` and `PROXY_VERBOSE=0`. Minimal logging suppresses per-request informational output while retaining warnings and errors. Set `PROXY_AUTO_UPDATE=0` when maintaining a reviewed installation. Codex normally forwards its own Authorization header, so no API key needs to be stored in the proxy's `.env`.
 
-After verifying that your upstream accepts gzip request bodies, you can set `PROXY_REQUEST_GZIP=1` to reduce upload size for large text histories. The default threshold is 262144 bytes and poorly compressible payloads are skipped. Compression is optional and disabled by default; see [request forwarding and compression](../README.md#request-forwarding-and-optional-compression). For the machine-wide installation below, add these settings to the installed app's `.env` and restart its scheduled task.
+After verifying that your upstream accepts gzip request bodies, enable **Settings → Compress large requests** in the browser and apply the saved settings with a restart. The default threshold is 262144 bytes and poorly compressible payloads are skipped. Compression is optional and disabled by default; see [request forwarding and compression](../README.md#request-forwarding-and-optional-compression). Existing `.env` settings remain valid; browser overrides are saved separately.
 
 An HTTP 415 rejection of proxy-added gzip triggers one automatic retry with the same payload sent uncompressed. The `gzip_fallbacks` counter in `/_stats` records this recovery attempt. Further requests with the same upstream, key, organization and project skip gzip for 60 seconds, avoiding repeated rejection until the next probe. Encodings supplied by Codex itself are preserved. See [runtime tuning](runtime-tuning.md) for the bounded worker pool, adaptive compression and stream buffers.
 
-For independent keys on a shared PC, keep `PROXY_RATE_LIMIT_SCOPE=credential`. If different keys deliberately share the same upstream quota, use `shared` so a 429 pauses all of them together. Restart the proxy after editing its `.env`.
+For independent keys on a shared PC, keep `PROXY_RATE_LIMIT_SCOPE=credential`. If different keys deliberately share the same upstream quota, choose **Shared quota** in the browser so a 429 pauses them together. Saved tuning settings apply after restarting the worker.
 
 ## 3. Start and check the proxy
 
 From the repository directory:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-proxy.ps1
+& .\.venv\Scripts\python.exe .\service.py --host 127.0.0.1 --port 8788 --no-auto-update --skip-start-update
 ```
 
 Leave that window open. In a second PowerShell window:
@@ -53,9 +53,9 @@ Leave that window open. In a second PowerShell window:
 Invoke-RestMethod 'http://127.0.0.1:8788/_health'
 ```
 
-Expect `status: ok`, `version: 1.6.0`, `listen: 127.0.0.1:8788`, `request_gzip_backend: isal`, `connection_pool_initialized: true`, `upstream_pool_cleanup_active: true` and a `stats` object. The gzip backend can be available even when request compression is disabled. Keep the default loopback address for a proxy shared by accounts on the same PC.
+Expect `status: ok`, `version: 1.8.0`, `listen: 127.0.0.1:8788`, `request_gzip_backend: isal`, `connection_pool_initialized: true`, `upstream_pool_cleanup_active: true` and a `stats` object. The gzip backend can be available even when request compression is disabled. Keep the default loopback address for a proxy shared by accounts on the same PC.
 
-The `ExecutionPolicy Bypass` above applies to this PowerShell process. It does not change the machine's execution policy.
+Open **http://127.0.0.1:8788/** in a browser. Running through `service.py` enables restart controls; direct `proxy.py` or `uvicorn` launches need an external process restart. The `ExecutionPolicy Bypass` used by PowerShell scripts below applies only to their process.
 
 ## 4. Connect Codex
 
@@ -97,7 +97,9 @@ Invoke-RestMethod 'http://127.0.0.1:8788/_health'
 
 This task starts at that user's logon. Other accounts can reach the same loopback listener while it runs, but this setup depends on the owner being logged in. Logs are in `logs\proxy.log` next to the source, with a rotated `.1` file.
 
-To restart this installation, remove and recreate its logon task:
+Use **Overview → Restart** in the browser. It stops accepting new API calls, lets current answers finish, restarts the worker and reconnects the panel. Only choose **Restart immediately** when you intend to interrupt current requests.
+
+If the listener is unavailable, remove and recreate the logon task:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall-autostart.ps1
@@ -140,17 +142,19 @@ PROXY_AUTO_UPDATE=0
 '@
 [System.IO.File]::WriteAllText((Join-Path $appRoot '.env'), $proxyEnv, (New-Object System.Text.UTF8Encoding($false)))
 
-# SYSTEM and administrators can maintain the installation. Users and LOCAL
-# SERVICE can read/run it; LOCAL SERVICE can write only the logs directory.
+# SYSTEM and administrators maintain the installation. Users and LOCAL SERVICE
+# can read/run it. The helper below grants only the explicit browser update files.
 icacls $machineRoot /inheritance:r
 if ($LASTEXITCODE -ne 0) { throw 'Changing directory inheritance failed.' }
 icacls $machineRoot /grant:r '*S-1-5-18:(OI)(CI)(F)' '*S-1-5-32-544:(OI)(CI)(F)' '*S-1-5-32-545:(OI)(CI)(RX)' '*S-1-5-19:(OI)(CI)(RX)'
 if ($LASTEXITCODE -ne 0) { throw 'Setting installation permissions failed.' }
 icacls (Join-Path $appRoot 'logs') /grant:r '*S-1-5-19:(OI)(CI)(M)'
 if ($LASTEXITCODE -ne 0) { throw 'Setting log directory permissions failed.' }
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $appRoot 'enable-browser-updates.ps1') -MachineRoot $machineRoot
+if ($LASTEXITCODE -ne 0) { throw 'Enabling browser update permissions failed.' }
 
 $launcher = Join-Path $appRoot '.venv\Scripts\pythonw.exe'
-$service = Join-Path $appRoot 'service.py'
+$service = Join-Path $appRoot 'machine_service.py'
 $action = New-ScheduledTaskAction -Execute $launcher -Argument ('"{0}" --host 127.0.0.1 --port 8788 --no-auto-update' -f $service) -WorkingDirectory $appRoot
 $trigger = New-ScheduledTaskTrigger -AtStartup
 $trigger.Delay = 'PT5S'
@@ -162,20 +166,27 @@ Start-ScheduledTask -TaskName $taskName
 
 Allow several seconds for startup, then check `/_health`. Run the Codex test from each account after configuring its provider as described in step 4. The shared proxy receives each request's Authorization header; credentials stay with the individual Codex users.
 
-For this installation, logs are at `$env:ProgramData\AgentRouterCodexProxy\app\logs\proxy.log`. Automatic updates are disabled because the service account has read/execute access to the source. An administrator can install reviewed updates while the task is stopped.
+For this installation, logs are at `$env:ProgramData\AgentRouterCodexProxy\app\logs\proxy.log`. Browser tuning and update state are stored in a protected sibling `control` directory. The service can modify only 13 explicitly listed update files, the installed manifest and that state directory. The wrapper, recovery bootstrap, `.env`, Python, packages and parent app directory remain read-only to the service.
 
-To restart the machine-wide task, use an elevated PowerShell window. Identify its worker before stopping the task and recheck its identity before terminating a leftover worker:
+Git auto-updates are disabled. Use **Updates** in the browser for compatible releases; dependency changes, recovery-bootstrap changes and added runtime files require an administrator installation. Future browser updates maintain the installed `manifest.json`. An old Git checkout or external staging copy is not the authoritative record of the running version.
+
+Use **Overview → Restart** for normal restarts from any Windows account. If the browser cannot reach the listener, use an elevated PowerShell window. Capture the matching supervisor and workers before stopping the task, including a supervisor relaunched by a browser update:
 
 ```powershell
 $appRoot = Join-Path $env:ProgramData 'AgentRouterCodexProxy\app'
 $taskName = 'AgentRouterCodexProxyMachine'
 $workerPython = Join-Path $appRoot '.venv\Scripts\python.exe'
+$supervisorScript = Join-Path $appRoot 'machine_service.py'
 $workerPattern = '^"?' + [regex]::Escape($workerPython) + '"?\s+-m\s+uvicorn\s+proxy:app(?:\s|$)'
-$workers = @(Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Where-Object { $_.CommandLine -match $workerPattern })
+$processes = @(Get-CimInstance Win32_Process | Where-Object {
+    $_.Name -in @('python.exe','pythonw.exe') -and $_.ExecutablePath -and
+    $_.ExecutablePath.StartsWith($appRoot + '\',[StringComparison]::OrdinalIgnoreCase) -and $_.CommandLine -and
+    ($_.CommandLine.Contains($supervisorScript) -or $_.CommandLine -match $workerPattern)
+} | Sort-Object @{Expression={ if ($_.CommandLine.Contains($supervisorScript)) { 0 } else { 1 } }})
 Stop-ScheduledTask -TaskName $taskName
-foreach ($worker in $workers) {
-    $current = Get-CimInstance Win32_Process -Filter "ProcessId=$($worker.ProcessId)"
-    if ($current -and $current.CreationDate -eq $worker.CreationDate -and $current.CommandLine -eq $worker.CommandLine) {
+foreach ($process in $processes) {
+    $current = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $process.ProcessId)
+    if ($current -and $current.CreationDate -eq $process.CreationDate -and $current.CommandLine -ceq $process.CommandLine) {
         Stop-Process -Id $current.ProcessId -ErrorAction Stop
     }
 }
@@ -184,7 +195,35 @@ Start-ScheduledTask -TaskName $taskName
 
 Wait for `/_health` to return `status: ok`, then retry interrupted Codex requests.
 
-## 7. Troubleshooting and rollback
+If an existing installation uses portable Python in `AgentRouterCodexProxy\runtime`, use its actual `python.exe` path and executable-root prefix in that emergency procedure. Do not delete an existing installation to apply this fresh-install example. Upgrade all runtime files together after backing up files, manifest and permissions.
+
+## 7. Manage the proxy in a browser
+
+Open **http://127.0.0.1:8788/**; `/_control/` opens the same panel. The four sections are:
+
+| Section | Controls |
+| --- | --- |
+| Overview | Active requests including open streams, queues, pool state, pause/resume and graceful or forced restart. |
+| Diagnostics | Start/stop an automatically expiring profile, view timing aggregates and download a sanitized JSON report. |
+| Settings | Edit 23 tuning values, save them separately from `.env`, and apply them with a worker restart. |
+| Updates | Explicitly check fork `main`, prepare a verified package, confirm installation and see success or rollback. |
+
+Settings are shared by users of this proxy instance. A stale settings revision is rejected if another tab changed it. The panel does not edit Codex's model, credentials, provider, listener port or conversation history. Downloaded reports contain counters and aggregate timings; graph history stays in the current tab.
+
+The browser makes no CDN/font requests and does not automatically poll GitHub. Local status polling slows or pauses in hidden tabs. Controls require a loopback client, the correct local Host/Origin and a per-worker token; exposing the API on a LAN does not enable remote control access.
+
+On a prepared machine installation, **Prepare update** checks four successful GitHub Actions jobs for the selected exact commit, extracts a bounded source package, verifies dependency pins and the protected bootstrap, and runs an isolated credential-free startup/API/assets probe. Preparation leaves the active worker running. Installation waits for current API requests, saves a verified backup and checks the new worker before admitting new calls. Startup failure triggers a verified rollback; the panel reconnects and shows the receipt. Keep the backup/state files for diagnosis.
+
+To rebuild the committed browser assets during development:
+
+```powershell
+npm ci --prefix panel-src --no-audit --no-fund
+npm run build --prefix panel-src
+```
+
+The Ubuntu/Python 3.12 CI job rebuilds these assets and checks that they match the committed `panel` files.
+
+## 8. Troubleshooting and rollback
 
 Version 1.7.0 adds a local diagnostic tool. Run it from the complete checkout or installed app directory; the wrapper selects its virtual environment or the machine's portable Python. Update telemetry.py, doctor.py and diagnose.ps1 together with proxy.py.
 
@@ -204,7 +243,7 @@ Get-NetTCPConnection -LocalPort 8788 -State Listen -ErrorAction SilentlyContinue
 
 - **Connection refused:** check that the selected task is running, that Python and dependencies are readable by its account, and that the configured port is 8788.
 - **Port occupied:** use one proxy instance. Inspect the owning process before changing its state.
-- **502 with `PoolTimeout`:** check that version 1.6.0 or newer is installed. It releases abandoned sends before response headers arrive, partially read JSON and cancelled SSE responses. Admission waiters stay outside HTTPcore, and abandoned CONNECTING/ACTIVE pool entries are reclaimed under its normal lock. `pool_timeouts`, `upstream_capacity_waits`, `upstream_disconnect_cancellations` and `upstream_orphaned_connections_reclaimed` are cumulative diagnostic counters. When abandoned requests finish cleanup, `upstream_slots_in_use` and `upstream_slot_waiters` in `/_health` should return to zero if no other requests are active. A generic 502 may still be an upstream/network failure; these counters help identify the reproduced pool-exhaustion case. Use the restart procedure above when needed; a Windows reboot is unnecessary.
+- **502 with `PoolTimeout`:** install the complete current runtime. It releases abandoned sends before response headers arrive, partially read JSON and cancelled SSE responses. Version 1.8.0 receives client disconnect events during Responses waits/sends instead of periodically checking a self-cancelling scope. Admission waiters stay outside HTTPcore, and abandoned CONNECTING/ACTIVE pool entries are reclaimed under its normal lock. `pool_timeouts`, `upstream_capacity_waits`, `upstream_disconnect_cancellations` and `upstream_orphaned_connections_reclaimed` are cumulative counters. When abandoned requests finish cleanup, `upstream_slots_in_use` and `upstream_slot_waiters` in `/_health` should return to zero if no other requests are active. A generic 502 may still be an upstream/network failure. Use the browser restart or emergency procedure when needed; a Windows reboot is unnecessary.
 - **`upstream_pool_cleanup_active: false`:** verify that all pinned `requirements.txt` packages were installed. The cleanup wrapper depends on the supported HTTPcore pool layout; rerun the regression suite before adopting dependency upgrades.
 - **401/403:** check the affected Codex user's AgentRouter credentials. A successful local health check does not authenticate upstream requests.
 - **A second Windows user fails:** configure that account's Codex provider and credentials; use machine-wide startup if the first account may log out.

@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import proxy
 
 
-async def until(predicate, timeout=3):
+async def until(predicate, timeout=8):
     deadline = time.monotonic() + timeout
     while not predicate():
         if time.monotonic() >= deadline:
@@ -35,7 +35,10 @@ class UpstreamCapacityTests(unittest.IsolatedAsyncioTestCase):
         self.responses = []
         self.server = await asyncio.start_server(self.serve, "127.0.0.1", 0)
         self.url = f"http://127.0.0.1:{self.server.sockets[0].getsockname()[1]}"
-        self.client = httpx.AsyncClient(timeout=httpx.Timeout(5, pool=5),
+        # The server deliberately withholds bodies/headers until cancellation.
+        # Leave enough fixture slack for Windows debug event-loop scheduling;
+        # request-specific timeout behavior is tested separately below.
+        self.client = httpx.AsyncClient(timeout=httpx.Timeout(15, pool=15),
             limits=httpx.Limits(max_connections=2, max_keepalive_connections=0), trust_env=False)
         self.previous_client = proxy._SHARED_CLIENT
         proxy._SHARED_CLIENT = self.client
@@ -142,7 +145,7 @@ class UpstreamCapacityTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(self.client._transport._pool._requests), 2)
             self.assertEqual(len(self.client._transport._pool.connections), 2)
             self.disconnect.set()
-            results = await asyncio.wait_for(asyncio.gather(*tasks), timeout=3)
+            results = await asyncio.wait_for(asyncio.gather(*tasks), timeout=8)
             self.assertTrue(all(response.status_code == 499 for response in results))
             await until(lambda: not self.pending)
             self.assertTrue(all(state["active"] == 0 for state in proxy._RATE_LIMIT_STATES.values()))

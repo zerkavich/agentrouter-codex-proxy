@@ -1,0 +1,2 @@
+# esbuild preserves whitespace inside bundled dependency license comments.
+panel/panel.js -whitespace

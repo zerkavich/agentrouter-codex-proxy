@@ -2,6 +2,8 @@
 
 A lightweight local compatibility proxy that fixes cross-resource session errors when using **Codex Desktop** or **Codex CLI** with **AgentRouter**.
 
+Version **1.8.0** adds a local browser control panel at **http://127.0.0.1:8788/**. Watch active streams and queues, capture a diagnostic report, save tuning settings, pause/resume, restart and install compatible updates from this fork's `main`.
+
 ---
 
 ## The Problem
@@ -56,12 +58,15 @@ Use the same resource that created the item to access it. [trace_id=...]
 6. **Cancellation Cleanup**: Releases pending upstream sends, partially read JSON/error bodies and SSE responses when a client disconnects or downstream delivery fails, preventing abandoned connections from exhausting HTTPX's pool.
 7. **Native Acceleration**: Uses ISA-L gzip and Uvicorn's native HTTP parser, prepares the connection pool during startup, and avoids redundant copying and timer allocation while draining buffered SSE data.
 8. **Quota Recovery & Diagnostics**: Fair cancellable launches preserve newer cooldowns against older successes, honor explicit retry hints and expose sanitized live status plus temporary timing capture.
+9. **Browser Management**: The bundled panel provides overview, diagnostics, 23 tuning settings and explicit update controls. A prepared shared installation verifies packages, waits for active requests, checks the new worker and rolls back startup failures.
 
 ---
 
 ## Setup & Usage
 
 For a complete walkthrough, see the [Windows installation guide](docs/windows-installation.md): Python and Git, Codex configuration, per-user or machine-wide startup, health checks, restart, and rollback.
+
+For a short Russian walkthrough, see [управление в браузере](docs/browser-control.ru.md).
 
 ### 1. Requirements
 - Python 3.10+
@@ -83,6 +88,8 @@ python proxy.py --host 0.0.0.0 --port 8788
 python service.py --host 0.0.0.0 --port 8788
 uvicorn proxy:app --host 0.0.0.0 --port 8788
 ```
+
+Open **http://127.0.0.1:8788/** for management. Use `service.py` or the protected `machine_service.py` entrypoint for browser restarts; direct `proxy.py`/`uvicorn` launches expose the panel but need an external restart. Browser package installation requires the prepared machine-wide permissions described in the installation guide. Normal use requires no Node.js, CDN or external fonts.
 > [!IMPORTANT]
 > By default the listener binds `127.0.0.1` (loopback only) and cannot be changed via `.env`. Only pass `--host 0.0.0.0` (or `-BindHost 0.0.0.0`) inside isolated Docker/Proxmox or firewalled LAN setups, and avoid setting a shared fallback API key if other machines can reach the port.
 
@@ -157,6 +164,10 @@ See [runtime settings and measured results](docs/runtime-tuning.md) for limits, 
 
 ## Latency tuning and validation
 
+Version **1.8.0** receives client disconnect events after the Responses body is consumed, reuses one receive owner across retries and joins it before handing the response to Starlette. This removes the 350 ms upstream polling interval and avoids a Python 3.10 cancellation race in a self-cancelling disconnect check. Gzip policy, dependency pins, model settings and upstream request semantics are preserved.
+
+The 154-test regression suite covers browser access guards, full stream lifetime accounting, settings conflicts, pause/drain/restart and verified updates/rollback, as well as the previous real-pool recovery tests. Four disposable Windows supervisor scenarios check successful browser installation, early worker exit, cold supervisor import failure and health timeout. See [1.8.0 browser control and measured validation](docs/browser-control-1.8.0.md).
+
 Version 1.7.0 adds cancellation-safe 429 queues and a diagnostic CLI. Cancelled callers reserve no future launch intervals; old successes cannot erase newer rate limits. Millisecond hints are parsed correctly, authoritative hints are not shortened by the generated-backoff cap, and a cooldown exceeding the recovery budget returns 429 without an early retry.
 
 ~~~powershell
@@ -171,7 +182,7 @@ Detailed timing is off by default. `--profile` enables it for new operations wit
 
 The [1.7.0 measured results](docs/recovery-1.7.0.md) show comparable ordinary latency, two controlled recovery examples, 125 passing regressions on three Python runtimes, and a 15-minute cancellation/profiling endurance run. Recovery from a scripted `150 milliseconds` hint improved from 15.209 s to 0.156 s; no general model-generation speedup is claimed.
 
-Install the full runtime, including telemetry.py; copying only proxy.py is insufficient for 1.7.0.
+Install the complete runtime and bundled `panel` assets; copying only `proxy.py` is insufficient. Browser updates maintain the installed manifest. Bootstrap/dependency changes require a reviewed administrator installation; do not run a separate Git updater alongside a browser installation.
 
 Install all pinned dependencies with `python -m pip install -r requirements.txt`, including when updating an existing checkout. Uvicorn selects `httptools` with its default `--http auto` setting. The supplied launchers use this setting and prepare the asynchronous HTTP client before accepting requests; startup preparation does not send an upstream request or store credentials.
 
@@ -194,6 +205,7 @@ These synthetic whole-loopback times include upstream validation. The tool-histo
 [GitHub Actions](https://github.com/zerkavich/agentrouter-codex-proxy/actions/workflows/tests.yml) runs the test suite on Windows and Linux with Python 3.10 and 3.12 for pushes to `main`, pull requests, and manual runs. Tests use mock or loopback upstreams and require no API credentials.
 
 - **Health check**: `http://127.0.0.1:8788/_health`
+- **Browser panel**: `http://127.0.0.1:8788/` (also `/_control/`).
 - **Proxy stats**: `http://127.0.0.1:8788/_stats`
   - Returns counts for total requests, mismatches caught, fallbacks applied, rate limits caught, pre-commit stream retries, successful recoveries, and pool timeouts.
 - **Live diagnostics**: `http://127.0.0.1:8788/_diagnostics`; doctor.py / diagnose.ps1 support watch, temporary profiling and sanitized JSON export.

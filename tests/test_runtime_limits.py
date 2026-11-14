@@ -317,7 +317,7 @@ class RatePartitionTests(unittest.IsolatedAsyncioTestCase):
         self.patches = mock.patch.multiple(
             proxy, RATE_LIMIT_SCOPE="credential", RATE_LIMIT_MAX_PARTITIONS=256,
             RATE_LIMIT_BASE_DELAY_S=0.05, RATE_LIMIT_MAX_DELAY_S=0.4,
-            MAX_RATE_LIMIT_WAIT_S=3.0, MAX_TRANSIENT_RETRIES=2, RECOVERY_STAGGER_S=0.02,
+            MAX_RATE_LIMIT_WAIT_S=8.0, MAX_TRANSIENT_RETRIES=2, RECOVERY_STAGGER_S=0.02,
             REQUEST_GZIP_ENABLED=False,
         )
         self.patches.start()
@@ -330,7 +330,9 @@ class RatePartitionTests(unittest.IsolatedAsyncioTestCase):
             if auth == "Bearer quota-a":
                 self.a_calls += 1
                 if self.a_calls == 1:
-                    return httpx.Response(429, headers={"retry-after": "0.4"},
+                    # Keep the controlled gate alive while inspecting/cancelling
+                    # it, even on a loaded Windows 3.10 debug event loop.
+                    return httpx.Response(429, headers={"retry-after": "4"},
                                           json={"error": {"message": "too many requests"}})
             return httpx.Response(200, json={"status": "completed", "output": []})
 

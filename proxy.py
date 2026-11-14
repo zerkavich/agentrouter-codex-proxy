@@ -61,6 +61,7 @@ _APP_ROOT = str(Path(__file__).resolve().parent)
 if _APP_ROOT not in sys.path:
     sys.path.insert(0, _APP_ROOT)
 from telemetry import RuntimeTimings
+from control import ControlRuntime, attach_control, apply_saved_settings
 
 try:
     from isal import igzip as _native_gzip
@@ -222,6 +223,7 @@ def _load_env():
                         os.environ[k] = v
 
 _load_env()
+apply_saved_settings(Path(__file__).resolve().parent)
 
 UPSTREAM = os.environ.get("AGENTROUTER_UPSTREAM", "https://agentrouter.org").rstrip("/")
 DEFAULT_LISTEN_HOST = "127.0.0.1"
@@ -329,7 +331,7 @@ if RATE_LIMIT_SCOPE not in ("credential", "shared"):
 RATE_LIMIT_MAX_PARTITIONS = max(1, int(os.environ.get("PROXY_RATE_LIMIT_PARTITIONS", "256")))
 TIMINGS = RuntimeTimings(os.environ.get("PROXY_TIMINGS", "0").lower() not in ("0", "", "false"))
 _STARTED_MONOTONIC = time.monotonic()
-VERSION = "1.7.0"
+VERSION = "1.8.0"
 _PROFILE_HASH_KEY = os.urandom(32)
 
 CLIENT_TIMEOUT = httpx.Timeout(
@@ -679,10 +681,39 @@ def _clear_rate_limit_cooldown(state: Optional[Dict[str, Any]] = None, generatio
 
 
 async def _client_disconnected(request: Request) -> bool:
+    listener = getattr(request, '_proxy_disconnect_listener', None)
+    if listener is not None:
+        if listener.done():
+            listener.result()
+            return True
+        return False
     try:
         return await request.is_disconnected()
     except Exception:
         return False
+
+
+async def _receive_until_disconnect(request: Request) -> None:
+    while True:
+        message = await request.receive()
+        if message['type'] == 'http.disconnect':
+            return
+
+
+@asynccontextmanager
+async def _watch_client_disconnect(request: Request):
+    # One receive owner covers quota waits, sends and partially read bodies.
+    # It avoids Request.is_disconnected's self-cancelling AnyIO scope, which
+    # can swallow a simultaneous external Task.cancel on Python 3.10.
+    listener = asyncio.create_task(_receive_until_disconnect(request))
+    request._proxy_disconnect_listener = listener
+    try:
+        yield
+    finally:
+        with anyio.CancelScope(shield=True):
+            listener.cancel()
+            await asyncio.gather(listener, return_exceptions=True)
+        del request._proxy_disconnect_listener
 
 
 async def _sleep_unless_disconnected(delay_s: float, request: Request, *, is_rate_limit: bool = True) -> bool:
@@ -1112,6 +1143,7 @@ async def _app_lifespan(_: FastAPI):
         yield
     finally:
         global _SHARED_CLIENT, _GZIP_POOL
+        await CONTROL.close()
         if _GZIP_POOL is not None:
             pool = _GZIP_POOL
             _GZIP_POOL = None
@@ -1402,7 +1434,23 @@ async def _abort_upstream_work(task: asyncio.Task) -> None:
 async def _await_upstream_work(request: Request, operation):
     """Release pool capacity if a client leaves before headers/JSON are ready."""
     task = asyncio.create_task(operation)
+    disconnect = getattr(request, '_proxy_disconnect_listener', None)
+    owns_disconnect = False
     try:
+        # After body consumption we own the receive channel until handing a
+        # response to Starlette. Waiting on http.disconnect removes per-request
+        # polling timers and frees abandoned sends as soon as the peer leaves.
+        if disconnect is not None or hasattr(request, '_body'):
+            if disconnect is None:
+                disconnect = asyncio.create_task(_receive_until_disconnect(request))
+                owns_disconnect = True
+            done, _ = await asyncio.wait((task, disconnect), return_when=asyncio.FIRST_COMPLETED)
+            if disconnect in done:
+                disconnect.result()
+                await _abort_upstream_work(task)
+                STATS['upstream_disconnect_cancellations'] += 1
+                return _CLIENT_DISCONNECTED
+            return task.result()
         while True:
             done, _ = await asyncio.wait((task,), timeout=0.35)
             if done:
@@ -1414,6 +1462,11 @@ async def _await_upstream_work(request: Request, operation):
     except BaseException:
         await _abort_upstream_work(task)
         raise
+    finally:
+        if owns_disconnect:
+            with anyio.CancelScope(shield=True):
+                disconnect.cancel()
+                await asyncio.gather(disconnect, return_exceptions=True)
 
 
 def _parse_sse_frame(raw_frame: bytes) -> Tuple[str, Optional[Dict[str, Any]], str]:
@@ -1960,10 +2013,11 @@ async def _prepare_responses_request(request: Request):
         return Response(status_code=499)
     source_headers = _filter_headers(dict(request.headers))
     rate_state = _acquire_rate_limit_state(source_headers)
-    try:
-        return await _handle_responses(request, body_bytes, source_headers, rate_state)
-    finally:
-        _release_rate_limit_state(rate_state)
+    async with _watch_client_disconnect(request):
+        try:
+            return await _handle_responses(request, body_bytes, source_headers, rate_state)
+        finally:
+            _release_rate_limit_state(rate_state)
 
 
 async def _handle_responses(request: Request, body_bytes: bytes, source_headers: Dict[str, str],
@@ -2262,6 +2316,35 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
         finally:
             if resp is not None and not stream_handed_off:
                 await _close_sse_producer(resp, None)
+
+CONTROL = ControlRuntime(Path(__file__).resolve().parent, VERSION, PORT, health, diagnostics, TIMINGS,
+    active_settings={
+        'PROXY_REQUEST_GZIP': REQUEST_GZIP_ENABLED,
+        'PROXY_REQUEST_GZIP_MIN_BYTES': REQUEST_GZIP_MIN_BYTES,
+        'PROXY_GZIP_WORKERS': REQUEST_GZIP_WORKERS,
+        'PROXY_GZIP_MAX_JOBS': REQUEST_GZIP_MAX_JOBS,
+        'PROXY_GZIP_REJECT_TTL_S': REQUEST_GZIP_REJECT_TTL_S,
+        'PROXY_GZIP_UPLOAD_MBIT_S': REQUEST_GZIP_UPLOAD_MBIT_S,
+        'PROXY_GZIP_COST_MARGIN': REQUEST_GZIP_COST_MARGIN,
+        'PROXY_CONNECT_TIMEOUT_S': CONNECT_TIMEOUT_S,
+        'PROXY_READ_TIMEOUT_S': READ_TIMEOUT_S,
+        'PROXY_VERBOSE': VERBOSE,
+        'PROXY_RATE_LIMIT_BASE_S': RATE_LIMIT_BASE_DELAY_S,
+        'PROXY_RATE_LIMIT_MAX_DELAY_S': RATE_LIMIT_MAX_DELAY_S,
+        'PROXY_MAX_RATE_LIMIT_WAIT_S': MAX_RATE_LIMIT_WAIT_S,
+        'PROXY_MAX_TRANSIENT_RETRIES': MAX_TRANSIENT_RETRIES,
+        'PROXY_RECOVERY_STAGGER_S': RECOVERY_STAGGER_S,
+        'PROXY_RATE_LIMIT_SCOPE': RATE_LIMIT_SCOPE,
+        'PROXY_RATE_LIMIT_PARTITIONS': RATE_LIMIT_MAX_PARTITIONS,
+        'PROXY_SSE_BUFFER_BYTES': SSE_BUFFER_MAX_BYTES,
+        'PROXY_SSE_PRIME_BYTES': SSE_PRIME_MAX_BYTES,
+        'PROXY_SSE_PRIME_FRAMES': SSE_PRIME_MAX_FRAMES,
+        'PROXY_SSE_PRIME_FIRST_TIMEOUT_S': SSE_PRIME_FIRST_TIMEOUT_S,
+        'PROXY_SSE_PRIME_CREATED_GRACE_S': SSE_PRIME_CREATED_GRACE_S,
+        'PROXY_TIMINGS': TIMINGS.always_enabled,
+    })
+attach_control(app, CONTROL)
+
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
 async def passthrough_handler(request: Request, path: str):

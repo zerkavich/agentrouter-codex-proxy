@@ -43,3 +43,11 @@ jobs:
         run: python -c "import fastapi, uvicorn, httpx, isal.igzip, httptools"
       - name: Run tests
         run: python -m unittest discover -s tests -v
+      - name: Install panel build dependencies
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        run: npm ci --prefix panel-src --no-audit --no-fund
+      - name: Reproduce committed browser assets
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        run: |
+          npm run build --prefix panel-src
+          git diff --exit-code -- panel

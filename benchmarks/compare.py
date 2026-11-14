@@ -20,7 +20,7 @@ import uuid
 
 
 def snapshot_runtime(source_path, repository, revision=None):
-    """Freeze the proxy and its local module from the same path or revision."""
+    """Freeze the proxy and local modules from the same path or revision."""
     def read(name):
         if revision is None:
             return (source_path if name == "proxy.py" else source_path.with_name(name)).read_bytes()
@@ -33,11 +33,22 @@ def snapshot_runtime(source_path, repository, revision=None):
         return result.stdout
 
     files = {"proxy.py": read("proxy.py")}
-    tree = ast.parse(files["proxy.py"])
-    if any((isinstance(node, ast.ImportFrom) and node.module == "telemetry" and not node.level)
-           or (isinstance(node, ast.Import) and any(name.name == "telemetry" for name in node.names))
-           for node in ast.walk(tree)):
-        files["telemetry.py"] = read("telemetry.py")
+    pending = ['proxy.py']
+    local_modules = {'telemetry', 'control', 'panel_updates', 'update_guard', 'doctor', 'updater'}
+    while pending:
+        current = pending.pop()
+        tree = ast.parse(files[current])
+        modules = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and not node.level:
+                modules.add(node.module)
+            elif isinstance(node, ast.Import):
+                modules.update(name.name for name in node.names)
+        for module in modules & local_modules:
+            name = module + '.py'
+            if name not in files:
+                files[name] = read(name)
+                pending.append(name)
     for name, source in files.items():
         compile(source, name, "exec")
     return files

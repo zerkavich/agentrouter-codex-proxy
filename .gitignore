@@ -13,6 +13,7 @@ logs/
 *.log.*
 nohup.out
 benchmark-results/
+node_modules/
 
 # ---------------------------------------------------------------------------
 # Python
