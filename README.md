@@ -55,6 +55,7 @@ Use the same resource that created the item to access it. [trace_id=...]
 5. **Codex Keeps Streaming**: Codex receives clean `text/event-stream` tokens and `: ping` heartbeats with far fewer interruptions.
 6. **Cancellation Cleanup**: Releases pending upstream sends, partially read JSON/error bodies and SSE responses when a client disconnects or downstream delivery fails, preventing abandoned connections from exhausting HTTPX's pool.
 7. **Native Acceleration**: Uses ISA-L gzip and Uvicorn's native HTTP parser, prepares the connection pool during startup, and avoids redundant copying and timer allocation while draining buffered SSE data.
+8. **Quota Recovery & Diagnostics**: Fair cancellable launches preserve newer cooldowns against older successes, honor explicit retry hints and expose sanitized live status plus temporary timing capture.
 
 ---
 
@@ -156,6 +157,22 @@ See [runtime settings and measured results](docs/runtime-tuning.md) for limits, 
 
 ## Latency tuning and validation
 
+Version 1.7.0 adds cancellation-safe 429 queues and a diagnostic CLI. Cancelled callers reserve no future launch intervals; old successes cannot erase newer rate limits. Millisecond hints are parsed correctly, authoritative hints are not shortened by the generated-backoff cap, and a cooldown exceeding the recovery budget returns 429 without an early retry.
+
+~~~powershell
+python doctor.py
+python doctor.py --watch
+python doctor.py --profile 60 --watch --duration 60
+python doctor.py --export proxy-report.json
+.\diagnose.ps1 -ProfileSeconds 60 -Watch -Duration 60
+~~~
+
+Detailed timing is off by default. `--profile` enables it for new operations without restart/config edits and expires automatically. `PROXY_TIMINGS=1` enables continuous capture after restart. Fixed aggregates distinguish upload, connection, quota/connection queues, upstream headers and SSE inspection/delivery. See [diagnostics and timing definitions](docs/diagnostics.md) for interval overlap and histogram upper bounds.
+
+The [1.7.0 measured results](docs/recovery-1.7.0.md) show comparable ordinary latency, two controlled recovery examples, 125 passing regressions on three Python runtimes, and a 15-minute cancellation/profiling endurance run. Recovery from a scripted `150 milliseconds` hint improved from 15.209 s to 0.156 s; no general model-generation speedup is claimed.
+
+Install the full runtime, including telemetry.py; copying only proxy.py is insufficient for 1.7.0.
+
 Install all pinned dependencies with `python -m pip install -r requirements.txt`, including when updating an existing checkout. Uvicorn selects `httptools` with its default `--http auto` setting. The supplied launchers use this setting and prepare the asynchronous HTTP client before accepting requests; startup preparation does not send an upstream request or store credentials.
 
 Keep `PROXY_VERBOSE=0` for normal use to suppress per-request informational logging. This is the example configuration's default; warnings and errors remain available. Set it to `1` while diagnosing a problem. For an upstream that accepts compressed requests, the optional gzip settings above reduce large uploads without changing the decoded request body.
@@ -179,6 +196,7 @@ These synthetic whole-loopback times include upstream validation. The tool-histo
 - **Health check**: `http://127.0.0.1:8788/_health`
 - **Proxy stats**: `http://127.0.0.1:8788/_stats`
   - Returns counts for total requests, mismatches caught, fallbacks applied, rate limits caught, pre-commit stream retries, successful recoveries, and pool timeouts.
+- **Live diagnostics**: `http://127.0.0.1:8788/_diagnostics`; doctor.py / diagnose.ps1 support watch, temporary profiling and sanitized JSON export.
 - **Logs**: When running as a service (`-Service` or via scheduled task), logs are stored in `logs/proxy.log` (automatically rotates at 1MB).
 - **Tests**:
   ```powershell

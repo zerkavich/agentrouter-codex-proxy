@@ -186,6 +186,17 @@ Wait for `/_health` to return `status: ok`, then retry interrupted Codex request
 
 ## 7. Troubleshooting and rollback
 
+Version 1.7.0 adds a local diagnostic tool. Run it from the complete checkout or installed app directory; the wrapper selects its virtual environment or the machine's portable Python. Update telemetry.py, doctor.py and diagnose.ps1 together with proxy.py.
+
+```powershell
+Set-Location 'C:\ProgramData\AgentRouterCodexProxy\app'
+.\diagnose.ps1
+.\diagnose.ps1 -Watch
+.\diagnose.ps1 -ProfileSeconds 60 -Watch -Duration 60 -ExportPath "$env:USERPROFILE\Desktop\proxy-report.json"
+```
+
+For a per-user checkout, use that checkout's path instead. Profiling starts without restart/config changes and expires automatically. The export contains sanitized counters and timing aggregates; choose a new file for each report. See [diagnostic interpretation](diagnostics.md) before treating overlapping timings as proxy overhead.
+
 ```powershell
 Invoke-RestMethod 'http://127.0.0.1:8788/_stats'
 Get-NetTCPConnection -LocalPort 8788 -State Listen -ErrorAction SilentlyContinue
@@ -193,7 +204,7 @@ Get-NetTCPConnection -LocalPort 8788 -State Listen -ErrorAction SilentlyContinue
 
 - **Connection refused:** check that the selected task is running, that Python and dependencies are readable by its account, and that the configured port is 8788.
 - **Port occupied:** use one proxy instance. Inspect the owning process before changing its state.
-- **502 with `PoolTimeout`:** check that version 1.6.0's cancellation fixes are installed. They release abandoned sends before response headers arrive, partially read JSON and cancelled SSE responses. Admission waiters stay outside HTTPcore, and abandoned CONNECTING/ACTIVE pool entries are reclaimed under its normal lock. `pool_timeouts`, `upstream_capacity_waits`, `upstream_disconnect_cancellations` and `upstream_orphaned_connections_reclaimed` are cumulative diagnostic counters. When abandoned requests finish cleanup, `upstream_slots_in_use` and `upstream_slot_waiters` in `/_health` should return to zero if no other requests are active. A generic 502 may still be an upstream/network failure; these counters help identify the reproduced pool-exhaustion case. Use the restart procedure above when needed; a Windows reboot is unnecessary.
+- **502 with `PoolTimeout`:** check that version 1.6.0 or newer is installed. It releases abandoned sends before response headers arrive, partially read JSON and cancelled SSE responses. Admission waiters stay outside HTTPcore, and abandoned CONNECTING/ACTIVE pool entries are reclaimed under its normal lock. `pool_timeouts`, `upstream_capacity_waits`, `upstream_disconnect_cancellations` and `upstream_orphaned_connections_reclaimed` are cumulative diagnostic counters. When abandoned requests finish cleanup, `upstream_slots_in_use` and `upstream_slot_waiters` in `/_health` should return to zero if no other requests are active. A generic 502 may still be an upstream/network failure; these counters help identify the reproduced pool-exhaustion case. Use the restart procedure above when needed; a Windows reboot is unnecessary.
 - **`upstream_pool_cleanup_active: false`:** verify that all pinned `requirements.txt` packages were installed. The cleanup wrapper depends on the supported HTTPcore pool layout; rerun the regression suite before adopting dependency upgrades.
 - **401/403:** check the affected Codex user's AgentRouter credentials. A successful local health check does not authenticate upstream requests.
 - **A second Windows user fails:** configure that account's Codex provider and credentials; use machine-wide startup if the first account may log out.

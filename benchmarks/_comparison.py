@@ -36,6 +36,11 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def runtime_hashes():
+    return {profile: {path.name: digest(path) for path in sorted((ROOT / profile).glob("*.py"))}
+            for profile in PROFILES}
+
+
 def write_json(path, value):
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
@@ -83,10 +88,11 @@ def terminate(process):
 async def run(args):
     folder = ROOT / args.label
     folder.mkdir(exist_ok=False)
-    sources = {profile: digest(ROOT / (profile + ".py")) for profile in PROFILES}
+    runtimes = runtime_hashes()
+    sources = {profile: files["proxy.py"] for profile, files in runtimes.items()}
     bodies = bench.fixtures()
     samples = {name: [] for name in bodies}
-    status = {"status": "running", "started_utc": utc(), "source_sha256": sources,
+    status = {"status": "running", "started_utc": utc(), "source_sha256": sources, "runtime_sha256": runtimes,
               "benchmark_sha256": digest(Path(__file__)),
               "server_harness_sha256": digest(SERVER_HELPER),
               "real_model_calls": 0, "completed_pairs": 0, "completed_epochs": 0,
@@ -191,15 +197,14 @@ async def run(args):
                         p[profile]["first_output_ms"] for p in pairs if p["epoch"] == epoch])
                         for profile in PROFILES} for epoch in range(1, args.epochs + 1)},
                 }
-            source_after = {p: digest(ROOT / (p + ".py")) for p in PROFILES}
-            if source_after != sources:
+            if runtime_hashes() != runtimes:
                 raise RuntimeError("Benchmark source changed during the run")
             status.update(status="passed", finished_utc=utc(), source_unchanged=True,
                           raw_pairs_sha256=digest(folder / "pairs.jsonl"))
             write_json(folder / "comparison.json", {
                 "checked_at": utc(), "scope": "Complete loopback HTTP/SSE, including synthetic decompression/hash validation; interleaved adjacent pairs",
                 "real_upstream_requests": 0, "model_generation_ms": 0,
-                "source_sha256": sources, "method": status["method"], "epochs": args.epochs,
+                "source_sha256": sources, "runtime_sha256": runtimes, "method": status["method"], "epochs": args.epochs,
                 "pairs_per_fixture_per_epoch": args.samples, "variants": variants, "paired": paired,
                 "receipt": "receipt.json", "raw_pairs": "pairs.jsonl",
             })

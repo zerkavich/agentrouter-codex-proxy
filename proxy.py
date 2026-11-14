@@ -38,6 +38,7 @@ from email.utils import parsedate_to_datetime
 import ipaddress
 import json
 import logging
+import math
 import os
 from pathlib import Path
 import random
@@ -54,6 +55,12 @@ import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from starlette.requests import ClientDisconnect
+
+# Embedded Python may omit the script directory from sys.path.
+_APP_ROOT = str(Path(__file__).resolve().parent)
+if _APP_ROOT not in sys.path:
+    sys.path.insert(0, _APP_ROOT)
+from telemetry import RuntimeTimings
 
 try:
     from isal import igzip as _native_gzip
@@ -320,6 +327,9 @@ RATE_LIMIT_SCOPE = os.environ.get("PROXY_RATE_LIMIT_SCOPE", "credential").lower(
 if RATE_LIMIT_SCOPE not in ("credential", "shared"):
     raise ValueError("PROXY_RATE_LIMIT_SCOPE must be credential or shared")
 RATE_LIMIT_MAX_PARTITIONS = max(1, int(os.environ.get("PROXY_RATE_LIMIT_PARTITIONS", "256")))
+TIMINGS = RuntimeTimings(os.environ.get("PROXY_TIMINGS", "0").lower() not in ("0", "", "false"))
+_STARTED_MONOTONIC = time.monotonic()
+VERSION = "1.7.0"
 _PROFILE_HASH_KEY = os.urandom(32)
 
 CLIENT_TIMEOUT = httpx.Timeout(
@@ -499,6 +509,12 @@ STATS = {
     "rate_limits_caught": 0,
     "stream_precommit_retries": 0,
     "rate_limit_wait_seconds_total": 0.0,
+    "rate_limit_gate_waits": 0,
+    "rate_limit_gate_timeouts": 0,
+    "rate_limit_cancelled_waiters": 0,
+    "rate_limit_stale_successes_ignored": 0,
+    "rate_limit_budget_exhaustions": 0,
+    "rate_limit_hint_responses": 0,
     "images_pruned_total": 0,
     "start_time": time.time(),
 }
@@ -510,7 +526,8 @@ STATS = {
 # ----------------------------------------------------------------------------
 def _new_rate_limit_state() -> Dict[str, Any]:
     return {"cooldown_until": 0.0, "streak": 0, "last_limit_at": 0.0,
-            "next_launch_after": 0.0, "active": 0, "launch_lock": None, "launch_loop": None}
+            "next_launch_after": 0.0, "active": 0, "generation": 0, "waiters": 0,
+            "launch_lock": None, "launch_loop": None}
 
 
 _RATE_LIMIT_STATE: Dict[str, Any] = _new_rate_limit_state()
@@ -576,78 +593,90 @@ def reset_rate_limit_state() -> None:
     _OVERFLOW_RATE_LIMIT_STATE.update(_new_rate_limit_state())
     _RATE_LIMIT_STATES.clear()
 
-def _parse_reset_duration(raw: str) -> Optional[float]:
-    m = RESET_DURATION_RE.search(raw.strip())
-    if not m:
+def _valid_delay_hint(raw: str, multiplier: float = 1.0) -> Optional[float]:
+    try:
+        value = float(raw.strip()) * multiplier
+        return value if math.isfinite(value) and value >= 0 else None
+    except (ValueError, OverflowError):
         return None
-    if m.group(3) is not None:
-        return float(m.group(3)) / 1000.0
-    mins = float(m.group(1) or 0.0)
-    secs = float(m.group(2) or 0.0)
-    return mins * 60.0 + secs
+
+
+def _parse_reset_duration(raw: str) -> Optional[float]:
+    raw = raw.strip().lower()
+    matches = list(re.finditer(r"(\d+(?:\.\d+)?)\s*(ms|s|m|h|d)", raw))
+    if not matches or re.sub(r"(\d+(?:\.\d+)?)\s*(ms|s|m|h|d)", "", raw).strip():
+        return None
+    scales = {"ms": 0.001, "s": 1, "m": 60, "h": 3600, "d": 86400}
+    value = sum(float(match[1]) * scales[match[2]] for match in matches)
+    return value if math.isfinite(value) else None
+
 
 def _extract_retry_delay_s(
     headers: Optional[Mapping[str, str]],
     text: str,
     streak: int,
 ) -> Tuple[float, Optional[int]]:
-    """Returns (sleep_delay_with_jitter_s, parsed_hint_seconds_or_none)."""
+    """Return jittered delay and ceil(hint); the backoff cap never shortens a hint."""
     hint_s: Optional[float] = None
     if headers:
         h = {k.lower(): v for k, v in headers.items()}
         if "retry-after-ms" in h:
-            try:
-                hint_s = float(h["retry-after-ms"].strip()) / 1000.0
-            except ValueError:
-                pass
+            hint_s = _valid_delay_hint(h["retry-after-ms"], 0.001)
         if hint_s is None and "retry-after" in h:
-            raw_ra = h["retry-after"].strip()
-            try:
-                hint_s = float(raw_ra)
-            except ValueError:
+            hint_s = _valid_delay_hint(h["retry-after"])
+            if hint_s is None:
                 try:
-                    dt = parsedate_to_datetime(raw_ra)
+                    dt = parsedate_to_datetime(h["retry-after"].strip())
                     if dt.tzinfo is None:
                         dt = dt.replace(tzinfo=timezone.utc)
-                    hint_s = max(0.5, (dt - datetime.now(timezone.utc)).total_seconds())
-                except Exception:
+                    hint_s = max(0.0, (dt - datetime.now(timezone.utc)).total_seconds())
+                except (ValueError, TypeError, OverflowError):
                     pass
         if hint_s is None:
-            for hdr_name in ("x-ratelimit-reset-tokens", "x-ratelimit-reset-requests"):
-                if hdr_name in h:
-                    parsed = _parse_reset_duration(h[hdr_name])
-                    if parsed is not None and parsed > 0:
-                        hint_s = parsed
-                        break
+            resets = []
+            for dimension in ("tokens", "requests"):
+                parsed = _parse_reset_duration(h.get("x-ratelimit-reset-" + dimension, ""))
+                remaining = _valid_delay_hint(h.get("x-ratelimit-remaining-" + dimension, ""))
+                if parsed is not None and parsed > 0 and (remaining is None or remaining == 0):
+                    resets.append(parsed)
+            if resets:
+                hint_s = max(resets)
 
     if hint_s is None and text:
-        m = RETRY_AFTER_TEXT_RE.search(text)
-        if m:
-            val = float(m.group(1))
-            unit = m.group(2).lower()
-            hint_s = (val / 1000.0) if unit.startswith("ms") else val
+        match = RETRY_AFTER_TEXT_RE.search(text)
+        if match:
+            hint_s = _valid_delay_hint(match[1], 0.001 if match[2].lower().startswith(("ms", "millisecond")) else 1.0)
 
     if hint_s is not None:
-        delay = min(max(0.5, hint_s) + random.uniform(0.15, 0.65), RATE_LIMIT_MAX_DELAY_S)
-        return delay, max(1, min(int(round(hint_s)), int(RATE_LIMIT_MAX_DELAY_S)))
+        delay = max(min(0.05, RATE_LIMIT_MAX_DELAY_S), hint_s)
+        # Small explicit hints need small jitter, while the FIFO launch gate
+        # still prevents callers sharing a quota from retrying in a burst.
+        jitter = min(0.5, max(0.0, RATE_LIMIT_MAX_DELAY_S - delay), delay * 0.1)
+        delay += random.uniform(0.0, jitter)
+        return delay, max(1, math.ceil(hint_s))
 
     exp = RATE_LIMIT_BASE_DELAY_S * (2 ** min(max(streak - 1, 0), 3))
-    delay = min(exp + random.uniform(0.2, 0.8), RATE_LIMIT_MAX_DELAY_S)
-    return delay, None
+    return min(exp + random.uniform(0.2, 0.8), RATE_LIMIT_MAX_DELAY_S), None
+
 
 def _record_rate_limit_cooldown(delay_s: float, state: Optional[Dict[str, Any]] = None) -> int:
     state = _RATE_LIMIT_STATE if state is None else state
     now = time.monotonic()
-    new_streak = min(int(state["streak"]) + 1, 4)
-    state["streak"] = new_streak
+    state["generation"] += 1
+    state["streak"] = min(int(state["streak"]) + 1, 4)
     state["last_limit_at"] = now
     state["cooldown_until"] = max(float(state["cooldown_until"]), now + delay_s)
-    return new_streak
+    return state["streak"]
 
-def _clear_rate_limit_cooldown(state: Optional[Dict[str, Any]] = None) -> None:
+
+def _clear_rate_limit_cooldown(state: Optional[Dict[str, Any]] = None, generation: Optional[int] = None) -> None:
     state = _RATE_LIMIT_STATE if state is None else state
+    if generation is not None and generation != state["generation"]:
+        STATS["rate_limit_stale_successes_ignored"] += 1
+        return
     state["streak"] = 0
     state["cooldown_until"] = 0.0
+
 
 async def _client_disconnected(request: Request) -> bool:
     try:
@@ -655,58 +684,117 @@ async def _client_disconnected(request: Request) -> bool:
     except Exception:
         return False
 
-async def _sleep_unless_disconnected(delay_s: float, request: Request) -> bool:
-    """Sleeps up to delay_s in small slices; returns False if client disconnected."""
+
+async def _sleep_unless_disconnected(delay_s: float, request: Request, *, is_rate_limit: bool = True) -> bool:
+    """Count elapsed backoff, including cancellation, rather than scheduled sleep."""
     if delay_s <= 0:
         return True
+    started = time.perf_counter()
     end = time.monotonic() + delay_s
-    STATS["rate_limit_wait_seconds_total"] = round(
-        float(STATS["rate_limit_wait_seconds_total"]) + delay_s, 2
-    )
-    while True:
-        if await _client_disconnected(request):
-            return False
-        rem = end - time.monotonic()
-        if rem <= 0:
-            return True
-        await asyncio.sleep(min(rem, 0.25))
+    try:
+        with TIMINGS.measure("retry_backoff"):
+            while True:
+                if await _client_disconnected(request):
+                    return False
+                remaining = end - time.monotonic()
+                if remaining <= 0:
+                    return True
+                await asyncio.sleep(min(remaining, 0.25))
+    finally:
+        if is_rate_limit:
+            STATS["rate_limit_wait_seconds_total"] += time.perf_counter() - started
 
-async def _wait_for_rate_limit_gate(request: Request, state: Optional[Dict[str, Any]] = None) -> bool:
-    """Honors active shared rate-limit cooldown and staggers post-limit bursts."""
-    state = _RATE_LIMIT_STATE if state is None else state
-    while True:
-        if await _client_disconnected(request):
-            return False
-        now = time.monotonic()
-        cooldown_until = float(state["cooldown_until"])
-        if now < cooldown_until:
-            await asyncio.sleep(min(cooldown_until - now, 0.25))
-            continue
 
-        recently_limited = (
-            state["streak"] > 0
-            or (now - float(state["last_limit_at"])) < 10.0
-        )
-        if not recently_limited or RECOVERY_STAGGER_S <= 0:
-            return True
+class _RateLimitGateExpired(Exception):
+    """The request cannot spend any more time queued behind upstream limits."""
 
-        lock = _get_launch_lock(state)
-        async with lock:
-            now = time.monotonic()
-            if now < float(state["cooldown_until"]):
-                continue
-            slot = float(state["next_launch_after"])
-            if now < slot:
-                wait_for_slot = slot - now
-                state["next_launch_after"] = slot + RECOVERY_STAGGER_S
-            else:
-                wait_for_slot = 0.0
-                state["next_launch_after"] = now + RECOVERY_STAGGER_S
 
-        if wait_for_slot > 0:
-            if not await _sleep_unless_disconnected(wait_for_slot, request):
+async def _acquire_launch_lock(lock: asyncio.Lock, request: Request, deadline: Optional[float]) -> bool:
+    task = asyncio.create_task(lock.acquire())
+    claimed = False
+    try:
+        while True:
+            remaining = deadline - time.monotonic() if deadline is not None else 0.25
+            if remaining <= 0:
+                raise _RateLimitGateExpired()
+            done, _ = await asyncio.wait((task,), timeout=min(0.25, remaining))
+            if await _client_disconnected(request):
                 return False
+            if done:
+                task.result()
+                claimed = True
+                return True
+    finally:
+        if not claimed:
+            # Acquire may finish during disconnect detection or external cancellation.
+            if task.done():
+                # Reclaim an acquired lock synchronously, so another cancellation
+                # cannot interrupt cleanup between observing it and releasing it.
+                if not task.cancelled() and task.exception() is None and task.result() is True:
+                    lock.release()
+            else:
+                task.cancel()
+                with anyio.CancelScope(shield=True):
+                    await asyncio.gather(task, return_exceptions=True)
+
+
+async def _wait_for_rate_limit_gate(request: Request, state: Optional[Dict[str, Any]] = None,
+                                    *, deadline: Optional[float] = None) -> bool:
+    """Fair, cancellable launches. Only a request actually leaving spends a slot."""
+    state = _RATE_LIMIT_STATE if state is None else state
+    if await _client_disconnected(request):
+        return False
+    now = time.monotonic()
+    recently_limited = state["streak"] > 0 or now - float(state["last_limit_at"]) < 10.0
+    if now < state["cooldown_until"] and deadline is not None and state["cooldown_until"] >= deadline:
+        STATS["rate_limit_gate_timeouts"] += 1
+        raise _RateLimitGateExpired()
+    if now >= state["cooldown_until"] and (not recently_limited or RECOVERY_STAGGER_S <= 0):
         return True
+
+    started = time.perf_counter()
+    state["waiters"] += 1
+    STATS["rate_limit_gate_waits"] += 1
+    lock = _get_launch_lock(state)
+    acquired = False
+    try:
+        with TIMINGS.measure("rate_limit_gate"):
+            acquired = await _acquire_launch_lock(lock, request, deadline)
+            if not acquired:
+                STATS["rate_limit_cancelled_waiters"] += 1
+                return False
+            while True:
+                if await _client_disconnected(request):
+                    STATS["rate_limit_cancelled_waiters"] += 1
+                    return False
+                now = time.monotonic()
+                recently_limited = state["streak"] > 0 or now - float(state["last_limit_at"]) < 10.0
+                launch_at = float(state["cooldown_until"])
+                if recently_limited and RECOVERY_STAGGER_S > 0:
+                    launch_at = max(launch_at, float(state["next_launch_after"]))
+                if deadline is not None and (now >= deadline or launch_at >= deadline):
+                    raise _RateLimitGateExpired()
+                if now >= launch_at:
+                    if recently_limited and RECOVERY_STAGGER_S > 0:
+                        state["next_launch_after"] = now + RECOVERY_STAGGER_S
+                    return True
+                remaining = min(0.25, launch_at - now)
+                if deadline is not None:
+                    remaining = min(remaining, deadline - now)
+                await asyncio.sleep(remaining)
+                # Recheck a newer 429 before issuing the launch.
+    except _RateLimitGateExpired:
+        STATS["rate_limit_gate_timeouts"] += 1
+        raise
+    except asyncio.CancelledError:
+        STATS["rate_limit_cancelled_waiters"] += 1
+        raise
+    finally:
+        if acquired:
+            lock.release()
+        state["waiters"] -= 1
+        STATS["rate_limit_wait_seconds_total"] += time.perf_counter() - started
+
 
 # ----------------------------------------------------------------------------
 # Shared Connection Pool
@@ -802,16 +890,17 @@ async def _send_with_capacity(client: httpx.AsyncClient, request: httpx.Request,
         capacity.waiters += 1
         STATS["upstream_capacity_waits"] += 1
     try:
-        timeouts = getattr(request, "extensions", {}).get("timeout", {})
-        pool_timeout = timeouts.get("pool", CLIENT_TIMEOUT.pool)
-        if waiting and pool_timeout is not None:
-            try:
-                with anyio.fail_after(pool_timeout):
-                    await capacity.semaphore.acquire()
-            except TimeoutError:
-                raise httpx.PoolTimeout("Timed out waiting for an available upstream connection", request=request) from None
-        else:
-            await capacity.semaphore.acquire()
+        with TIMINGS.measure("upstream_admission"):
+            timeouts = getattr(request, "extensions", {}).get("timeout", {})
+            pool_timeout = timeouts.get("pool", CLIENT_TIMEOUT.pool)
+            if waiting and pool_timeout is not None:
+                try:
+                    with anyio.fail_after(pool_timeout):
+                        await capacity.semaphore.acquire()
+                except TimeoutError:
+                    raise httpx.PoolTimeout("Timed out waiting for an available upstream connection", request=request) from None
+            else:
+                await capacity.semaphore.acquire()
     finally:
         if waiting:
             capacity.waiters -= 1
@@ -968,7 +1057,14 @@ async def _send_with_transport_retry(
                 params=params,
                 content=content,
             )
-            return await _send_with_capacity(client, req, stream=stream)
+            trace = TIMINGS.upstream_trace(req.extensions.get("trace")) if TIMINGS.enabled else None
+            if trace is not None:
+                req.extensions["trace"] = trace
+            try:
+                return await _send_with_capacity(client, req, stream=stream)
+            finally:
+                if trace is not None:
+                    trace.close()
         except (httpx.ConnectError, httpx.ConnectTimeout, httpx.RemoteProtocolError, httpx.ReadTimeout) as exc:
             last_exc = exc
             STATS["transport_retries"] += 1
@@ -1028,7 +1124,7 @@ async def _app_lifespan(_: FastAPI):
 app = FastAPI(
     title="agentrouter-codex-proxy",
     description="Local compatibility proxy fixing OpenAI Responses cross-resource errors for Codex",
-    version="1.6.0",
+    version=VERSION,
     lifespan=_app_lifespan,
 )
 
@@ -1057,12 +1153,15 @@ def _filter_headers(headers: Dict[str, str]) -> Dict[str, str]:
 
 @app.get("/_health")
 async def health():
-    uptime_s = round(time.time() - STATS["start_time"], 1)
+    uptime_s = round(time.monotonic() - _STARTED_MONOTONIC, 1)
     capacity = _CLIENT_CAPACITY.get(_SHARED_CLIENT) if _SHARED_CLIENT is not None else None
     return {
         "status": "ok",
         "proxy": "agentrouter-codex-proxy",
-        "version": "1.6.0",
+        "version": VERSION,
+        "timings_enabled": TIMINGS.enabled,
+        "diagnostics_schema_version": 1,
+        "on_demand_profiling_supported": True,
         "dns_fallback_active": True,
         "max_images_per_request": MAX_IMAGES_PER_REQUEST,
         "request_gzip_enabled": REQUEST_GZIP_ENABLED,
@@ -1092,6 +1191,106 @@ async def health():
 @app.get("/_stats")
 async def stats():
     return STATS
+
+
+@app.get("/_diagnostics")
+async def diagnostics():
+    """Read-only, bounded runtime snapshot without upstream URLs or key hashes."""
+    now = time.monotonic()
+    states = (_RATE_LIMIT_STATE, _OVERFLOW_RATE_LIMIT_STATE, *_RATE_LIMIT_STATES.values())
+    cooldowns = [max(0.0, float(state["cooldown_until"]) - now) for state in states]
+    cooldown_count = sum(value > 0 for value in cooldowns)
+    recent_gzip_rejections = sum(deadline > now for deadline in _GZIP_REJECTIONS.values())
+    queued = sum(state["waiters"] for state in states)
+    capacity = _CLIENT_CAPACITY.get(_SHARED_CLIENT) if _SHARED_CLIENT is not None else None
+    pool = getattr(getattr(_SHARED_CLIENT, "_transport", None), "_pool", None)
+    connections = getattr(pool, "_connections", ())
+    counts = {name: value for name, value in STATS.items() if name != "start_time"}
+    timing_snapshot = TIMINGS.snapshot()
+    findings = []
+    if cooldown_count:
+        findings.append({
+            "code": "upstream_rate_limit", "kind": "current",
+            "message": "Upstream cooldown is active. Callers sharing that quota are waiting.",
+        })
+    if capacity is not None and capacity.waiters:
+        findings.append({
+            "code": "upstream_capacity_wait", "kind": "current",
+            "message": "Requests are waiting for the existing upstream connection limit.",
+        })
+    if timing_snapshot["upstream_headers"]["active"]:
+        findings.append({
+            "code": "upstream_headers_wait", "kind": "current",
+            "message": "Some upstream attempts have not sent response headers yet.",
+        })
+    if counts["pool_timeouts"]:
+        findings.append({
+            "code": "pool_timeouts_observed", "kind": "since_start",
+            "message": "Pool timeouts occurred since startup; this does not establish a current leak.",
+        })
+    if counts["rate_limit_overflow_requests"]:
+        findings.append({
+            "code": "credential_partition_overflow", "kind": "since_start",
+            "message": "Credential partition capacity was exceeded; overflow callers shared a gate.",
+        })
+    if recent_gzip_rejections:
+        findings.append({
+            "code": "gzip_rejection_cached", "kind": "current",
+            "message": "Recent HTTP 415 responses temporarily disabled proxy-added gzip for those callers.",
+        })
+    return {
+        "schema_version": 1, "proxy": "agentrouter-codex-proxy", "version": VERSION,
+        "process_id": os.getpid(), "uptime_seconds": round(now - _STARTED_MONOTONIC, 3),
+        "status": "rate_limited" if cooldown_count else ("busy" if queued or (capacity and capacity.waiters) else "ready"),
+        **TIMINGS.profile_status(),
+        "connection_pool": {
+            "max_inflight": capacity.limit if capacity is not None else 50,
+            "in_use": capacity.in_use if capacity is not None else 0,
+            "waiters": capacity.waiters if capacity is not None else 0,
+            "connections": len(connections),
+            "idle_connections": sum(connection.is_idle() for connection in connections),
+            "cleanup_active": bool(getattr(pool, "_proxy_unstarted_cleanup", False)),
+        },
+        "rate_limits": {
+            "scope": RATE_LIMIT_SCOPE, "partitions": len(_RATE_LIMIT_STATES),
+            "max_partitions": RATE_LIMIT_MAX_PARTITIONS, "cooling_partitions": cooldown_count,
+            "queued_requests": queued, "longest_cooldown_remaining_s": round(max(cooldowns), 4),
+            "request_wait_budget_s": MAX_RATE_LIMIT_WAIT_S,
+            "wait_seconds_total": round(STATS["rate_limit_wait_seconds_total"], 6),
+            "wait_seconds_semantics": "elapsed_gate_and_rate_limit_backoff",
+        },
+        "compression": {
+            "enabled": REQUEST_GZIP_ENABLED, "backend": "isal" if _native_gzip is not None else "stdlib",
+            "workers": REQUEST_GZIP_WORKERS, "max_jobs": REQUEST_GZIP_MAX_JOBS,
+            "jobs_inflight": _GZIP_POOL.inflight if _GZIP_POOL is not None else 0,
+            "rejection_cache_entries": recent_gzip_rejections,
+        },
+        "counts": counts, "timings": timing_snapshot, "findings": findings,
+    }
+
+@app.post("/_diagnostics/profile")
+async def start_diagnostic_profile(request: Request):
+    """Enable bounded temporary profiling from a local non-browser tool."""
+    if request.client is None or not is_loopback_host(request.client.host) or request.headers.get("origin"):
+        return JSONResponse(status_code=403, content={"error": "Local diagnostic tool required"})
+    body = bytearray()
+    try:
+        async for chunk in request.stream():
+            if len(body) + len(chunk) > 1024:
+                return JSONResponse(status_code=413, content={"error": "Profile request is too large"})
+            body.extend(chunk)
+    except ClientDisconnect:
+        return Response(status_code=499)
+    try:
+        options = json.loads(body)
+        seconds = options.get("duration_s", 30) if isinstance(options, dict) else None
+        if (isinstance(seconds, bool) or not isinstance(seconds, (int, float))
+                or not math.isfinite(seconds) or not 0 < seconds <= 300):
+            raise ValueError()
+    except (ValueError, OverflowError):
+        return JSONResponse(status_code=422, content={"error": "duration_s must be finite and between 0 and 300 seconds"})
+    TIMINGS.profile(seconds)
+    return {"schema_version": 1, "proxy": "agentrouter-codex-proxy", **TIMINGS.profile_status()}
 
 @dataclass
 class SSEPrimeResult:
@@ -1176,10 +1375,14 @@ class UpstreamStreamingResponse(StreamingResponse):
         self.producer_task = producer_task
 
     async def __call__(self, scope, receive, send):
+        started = TIMINGS.begin("sse_delivery")
         try:
             await super().__call__(scope, receive, send)
         finally:
-            await _close_sse_producer(self.upstream_response, self.producer_task)
+            try:
+                await _close_sse_producer(self.upstream_response, self.producer_task)
+            finally:
+                TIMINGS.finish("sse_delivery", started)
 
 
 _CLIENT_DISCONNECTED = object()
@@ -1487,10 +1690,9 @@ def _rate_limit_error_response(
     retry_after_s: int,
     headers: Optional[Dict[str, str]] = None,
 ) -> JSONResponse:
-    out_headers = dict(headers or {})
-    out_headers.pop("content-type", None)
-    if not any(k.lower() == "retry-after" for k in out_headers):
-        out_headers["retry-after"] = str(max(1, retry_after_s))
+    out_headers = {key: value for key, value in (headers or {}).items()
+                   if key.lower() not in ("content-type", "retry-after")}
+    out_headers["retry-after"] = str(max(1, retry_after_s))
     body_err = dict(err_payload) if isinstance(err_payload, dict) else {"message": message or "Upstream rate limit exceeded"}
     if code and "code" not in body_err:
         body_err["code"] = code
@@ -1737,6 +1939,11 @@ async def _prepare_upstream_content(content: bytes, source_headers: Dict[str, st
 @app.post("/v1/responses")
 @app.post("/responses")
 async def handle_responses(request: Request):
+    with TIMINGS.measure("response_ready"):
+        return await _prepare_responses_request(request)
+
+
+async def _prepare_responses_request(request: Request):
     """
     Main handler for Codex /v1/responses.
     Performs pre-commit SSE priming, staggered rate-limit recovery, and stateless
@@ -1746,7 +1953,8 @@ async def handle_responses(request: Request):
     STATS["responses_requests"] += 1
 
     try:
-        body_bytes = await request.body()
+        with TIMINGS.measure("client_upload"):
+            body_bytes = await request.body()
     except ClientDisconnect:
         STATS["client_disconnects_during_upload"] += 1
         return Response(status_code=499)
@@ -1760,26 +1968,27 @@ async def handle_responses(request: Request):
 
 async def _handle_responses(request: Request, body_bytes: bytes, source_headers: Dict[str, str],
                             rate_state: Dict[str, Any]):
-    body_json = _decode_responses_payload(body_bytes) if _payload_may_contain_images(body_bytes) else None
-    headers = source_headers
-    upstream_url = f"{UPSTREAM}/v1/responses"
+    with TIMINGS.measure("payload_inspect"):
+        body_json = _decode_responses_payload(body_bytes) if _payload_may_contain_images(body_bytes) else None
+        headers = source_headers
+        upstream_url = f"{UPSTREAM}/v1/responses"
 
-    active_payload = body_json
-    req_content = body_bytes
-    wire_content = None
-    fallback_active = False
-    gzip_fallback_active = False
+        active_payload = body_json
+        req_content = body_bytes
+        wire_content = None
+        fallback_active = False
+        gzip_fallback_active = False
 
-    # Preemptive check: prune excess historical images before sending upstream.
-    if active_payload and isinstance(active_payload.get("input"), list):
-        active_payload, pre_pruned = prune_excess_images(active_payload, max_images=MAX_IMAGES_PER_REQUEST)
-        if pre_pruned > 0:
-            req_content = _encode_responses_payload(active_payload)
-            STATS["images_pruned_total"] += pre_pruned
-            logger.warning(
-                "[Preemptive Image Pruning] Pruned %d historical images (kept %d latest) to prevent 50-image ceiling rejection",
-                pre_pruned, MAX_IMAGES_PER_REQUEST
-            )
+        # Preemptive check: prune excess historical images before sending upstream.
+        if active_payload and isinstance(active_payload.get("input"), list):
+            active_payload, pre_pruned = prune_excess_images(active_payload, max_images=MAX_IMAGES_PER_REQUEST)
+            if pre_pruned > 0:
+                req_content = _encode_responses_payload(active_payload)
+                STATS["images_pruned_total"] += pre_pruned
+                logger.warning(
+                    "[Preemptive Image Pruning] Pruned %d historical images (kept %d latest) to prevent 50-image ceiling rejection",
+                    pre_pruned, MAX_IMAGES_PER_REQUEST
+                )
 
     retry_start = time.monotonic()
     transient_retries = 0
@@ -1817,34 +2026,52 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
             STATS["rate_limits_caught"] += 1
             streak = min(int(rate_state["streak"]) + 1, 4)
             delay_s, hint_s = _extract_retry_delay_s(resp_hdrs, err_msg, streak)
-            suggested_ra = hint_s if hint_s is not None else max(1, min(int(round(delay_s)), int(RATE_LIMIT_MAX_DELAY_S)))
+            if hint_s is not None:
+                STATS["rate_limit_hint_responses"] += 1
+            # Always protect the other callers, even when this request has no
+            # retries left or cannot fit the authoritative delay in its budget.
+            _record_rate_limit_cooldown(delay_s, rate_state)
+            suggested_ra = max(1, math.ceil(rate_state["cooldown_until"] - time.monotonic()))
         else:
             delay_s = min(1.0 * (2 ** min(transient_retries, 3)) + random.uniform(0.1, 0.4), RATE_LIMIT_MAX_DELAY_S)
             suggested_ra = max(1, int(round(delay_s)))
 
         remaining_budget = MAX_RATE_LIMIT_WAIT_S - (time.monotonic() - retry_start)
-        if transient_retries >= MAX_TRANSIENT_RETRIES or remaining_budget <= 0.25:
+        if transient_retries >= MAX_TRANSIENT_RETRIES or delay_s >= remaining_budget:
+            if is_rate_limit:
+                STATS["rate_limit_budget_exhaustions"] += 1
             return False, suggested_ra
 
-        wait_s = min(delay_s, remaining_budget)
-        if is_rate_limit:
-            _record_rate_limit_cooldown(wait_s, rate_state)
+        wait_s = delay_s
         transient_retries += 1
         logger.warning(
             "[%s] Retrying (%d/%d) after %.1fs: %s",
             label, transient_retries, MAX_TRANSIENT_RETRIES, wait_s, (err_msg or "")[:140]
         )
-        ok = await _sleep_unless_disconnected(wait_s, request)
+        ok = await _sleep_unless_disconnected(wait_s, request, is_rate_limit=is_rate_limit)
         return ok, suggested_ra
 
     while True:
-        if not await _wait_for_rate_limit_gate(request, rate_state):
-            return Response(status_code=499)
-
         if wire_content is None:
-            wire_content, headers = await _prepare_upstream_content(req_content, source_headers)
+            with TIMINGS.measure("payload_prepare"):
+                wire_content, headers = await _prepare_upstream_content(req_content, source_headers)
             if REQUEST_GZIP_ENABLED and len(req_content) >= REQUEST_GZIP_MIN_BYTES and await _client_disconnected(request):
                 return Response(status_code=499)
+
+        try:
+            if not await _wait_for_rate_limit_gate(
+                request, rate_state, deadline=retry_start + MAX_RATE_LIMIT_WAIT_S
+            ):
+                return Response(status_code=499)
+        except _RateLimitGateExpired:
+            retry_after = max(1, math.ceil(max(
+                rate_state["cooldown_until"], rate_state["next_launch_after"]
+            ) - time.monotonic()))
+            return _rate_limit_error_response(
+                None, "Upstream rate-limit queue exceeded this request's retry budget",
+                "rate_limit_exceeded", retry_after, {},
+            )
+        attempt_generation = rate_state["generation"]
 
         resp = None
         stream_handed_off = False
@@ -1869,9 +2096,10 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
             content_type = resp.headers.get("content-type", "")
 
             if resp.status_code == 200 and "text/event-stream" in content_type.lower():
-                prime = await _prime_responses_sse(resp, request)
+                with TIMINGS.measure("sse_prime"):
+                    prime = await _prime_responses_sse(resp, request)
                 if prime.status == "commit":
-                    _clear_rate_limit_cooldown(rate_state)
+                    _clear_rate_limit_cooldown(rate_state, attempt_generation)
                     if fallback_active or gzip_fallback_active or transient_retries > 0 or mismatch_attempts > 0:
                         STATS["successful_recoveries"] += 1
                         logger.info(
@@ -1933,7 +2161,8 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
                 )
 
             if resp.status_code == 200:
-                body = resp.content if resp.is_stream_consumed else await _await_upstream_work(request, resp.aread())
+                with TIMINGS.measure("upstream_body"):
+                    body = resp.content if resp.is_stream_consumed else await _await_upstream_work(request, resp.aread())
                 if body is _CLIENT_DISCONNECTED:
                     return Response(status_code=499)
                 await resp.aclose()
@@ -1962,14 +2191,15 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
                         if is_rl:
                             return _rate_limit_error_response(err_obj, msg, code, suggested_ra, resp_headers)
 
-                _clear_rate_limit_cooldown(rate_state)
+                _clear_rate_limit_cooldown(rate_state, attempt_generation)
                 if fallback_active or gzip_fallback_active or transient_retries > 0 or mismatch_attempts > 0:
                     STATS["successful_recoveries"] += 1
                     logger.info("[Success] Request recovered!")
                 return Response(content=body, status_code=200, headers=resp_headers)
 
             # Non-200 HTTP status
-            err_body = resp.content if resp.is_stream_consumed else await _await_upstream_work(request, resp.aread())
+            with TIMINGS.measure("upstream_body"):
+                err_body = resp.content if resp.is_stream_consumed else await _await_upstream_work(request, resp.aread())
             if err_body is _CLIENT_DISCONNECTED:
                 return Response(status_code=499)
             await resp.aclose()
@@ -2010,7 +2240,7 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
                     continue
                 if await _client_disconnected(request):
                     return Response(status_code=499)
-                if resp.status_code == 429 and not any(k.lower() == "retry-after" for k in resp_headers):
+                if resp.status_code == 429:
                     resp_headers["retry-after"] = str(suggested_ra)
                 logger.error("[Forwarding Error %d] %s", resp.status_code, err_text[:200])
                 return Response(content=err_body, status_code=resp.status_code, headers=resp_headers)

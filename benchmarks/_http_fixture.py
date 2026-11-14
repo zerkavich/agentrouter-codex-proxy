@@ -19,7 +19,7 @@ import httpx
 
 ROOT = Path(os.environ["CODEX_PROXY_BENCH_ROOT"]).resolve()
 GZIP = os.environ.get("CODEX_PROXY_BENCH_GZIP", "1") == "1"
-PROFILES = {profile: {"source": profile + ".py", "gzip": GZIP,
+PROFILES = {profile: {"source": profile + "/proxy.py", "gzip": GZIP,
                       "http": "auto", "verbose": False}
             for profile in ("baseline", "candidate")}
 
