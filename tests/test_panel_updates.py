@@ -21,7 +21,9 @@ from control import atomic_json
 class PanelUpdateTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.base = Path(self.temp.name)
+        # Hosted Windows runners can expose TEMP through a short DOS path.
+        # Match the updater's canonical paths so copy-fault injection fires.
+        self.base = Path(self.temp.name).resolve()
         self.root = self.base / 'app'
         self.root.mkdir()
         self.files = {name: b'# old\n' if name.endswith('.py') else b'old asset\n'
