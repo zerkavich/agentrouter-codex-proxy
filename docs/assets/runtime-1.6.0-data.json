@@ -2,6 +2,7 @@
   "source_sha256": "8ef7158e275fdc296b69e3fdaa2d0d1c793873109db7ce0252aba8adee12744b",
   "preceding_main": "a5621cec2de69050daff58b1a21a76739dbf7e3d",
   "upstream_original": "58ea3133be113474880284e17631cb2451d640f4",
+  "normalized_source_sha256": "63d47336fc39ef2c9ffd84dd911c698accd0ee6f82e8e1cf8b88c6fa133ac9d4",
   "requirements_sha256": "7bbb92da4cbaed2e5e1e4fc6e99a91b5847239ae4011f6f79e21764eeee754e9",
   "runtime_version": "1.6.0",
   "real_model_calls": 0,
@@ -3919,5 +3920,195 @@
     },
     "receipt": "receipt.json",
     "raw_pairs": "pairs.jsonl"
+  },
+  "endurance": {
+    "status": "passed",
+    "started_utc": "2026-11-14T00:41:04.913642+00:00",
+    "checked_utc": "2026-11-14T03:45:01.045575+00:00",
+    "elapsed_seconds": 11036.125,
+    "target_duration_seconds": 11035.086358,
+    "source_sha256": "8ef7158e275fdc296b69e3fdaa2d0d1c793873109db7ce0252aba8adee12744b",
+    "source_unchanged": true,
+    "real_model_calls": 0,
+    "counts": {
+      "compression_bursts": 19,
+      "successful_calls": 23757,
+      "normal": 9035,
+      "json": 4416,
+      "comments": 1104,
+      "expected_cancellations": 13184,
+      "cancel_prime": 1104,
+      "cancel_json": 1104,
+      "cancel_headers": 1104,
+      "cancel_upload": 1104,
+      "cancel_stream": 1104,
+      "large": 4416,
+      "burst": 1216,
+      "no_gzip": 1104,
+      "mismatch": 1104,
+      "noise": 1104,
+      "reset": 37,
+      "quota": 184,
+      "server_error": 37,
+      "slow": 368,
+      "cycles": 1104,
+      "cancel_header_burst_requests": 7296,
+      "cancel_header_bursts": 19
+    },
+    "memory": {
+      "rss_peak_bytes": 217378816,
+      "private_peak_bytes": 203800576,
+      "thread_peak": 11,
+      "samples": 10963
+    },
+    "errors": [],
+    "final_metadata": {
+      "health": {
+        "status": "ok",
+        "proxy": "agentrouter-codex-proxy",
+        "version": "1.6.0",
+        "dns_fallback_active": true,
+        "max_images_per_request": 35,
+        "request_gzip_enabled": true,
+        "request_gzip_min_bytes": 262144,
+        "request_gzip_backend": "isal",
+        "gzip_workers": 4,
+        "gzip_max_jobs": 16,
+        "gzip_jobs_inflight": 0,
+        "gzip_rejection_cache_entries": 1,
+        "connection_pool_initialized": true,
+        "upstream_max_inflight": 50,
+        "upstream_slots_in_use": 0,
+        "upstream_slot_waiters": 0,
+        "upstream_pool_cleanup_active": true,
+        "sse_buffer_max_bytes": 1048576,
+        "sse_prime_max_bytes": 262144,
+        "sse_prime_max_frames": 1024,
+        "rate_limit_scope": "credential",
+        "rate_limit_partitions": 256,
+        "listen": "127.0.0.1:59524",
+        "uptime_seconds": 11034.2,
+        "upstream": "http://127.0.0.1:59523",
+        "stats": {
+          "requests_total": 36941,
+          "responses_requests": 36941,
+          "resource_mismatches_caught": 1104,
+          "stateless_fallbacks_applied": 1104,
+          "successful_recoveries": 1487,
+          "transport_retries": 37,
+          "pool_timeouts": 0,
+          "upstream_capacity_waits": 6842,
+          "upstream_unstarted_connections_reclaimed": 0,
+          "upstream_orphaned_connections_reclaimed": 26,
+          "client_disconnects_during_upload": 1104,
+          "upstream_disconnect_cancellations": 9504,
+          "gzip_payloads": 5729,
+          "gzip_input_bytes": 6497154365,
+          "gzip_output_bytes": 44954234,
+          "gzip_fallbacks": 162,
+          "gzip_cached_rejection_skips": 942,
+          "gzip_busy_skips": 65,
+          "gzip_cost_skips": 0,
+          "gzip_evaluations": 6833,
+          "gzip_preparation_seconds_total": 70.26543279988255,
+          "sse_backpressure_events": 442,
+          "sse_prime_buffer_commits": 1104,
+          "rate_limit_overflow_requests": 2451,
+          "rate_limits_caught": 184,
+          "stream_precommit_retries": 0,
+          "rate_limit_wait_seconds_total": 211.33,
+          "images_pruned_total": 0,
+          "start_time": 1794616866.7841423
+        }
+      },
+      "pool_requests": 0,
+      "pool_connections": 11,
+      "unconnected_pool_entries": 0,
+      "unowned_active_pool_entries": 0,
+      "queued_pool_requests": 0,
+      "upstream_semaphore_value": 50,
+      "upstream_semaphore_waiters": 0,
+      "active_rate_references": 0,
+      "upload_cache_entries": 67,
+      "cost_cache_entries": 1
+    },
+    "final_upstream": {
+      "active_connections": 12,
+      "connections_total": 9047,
+      "requests_total": 31391,
+      "plain_requests": 25662,
+      "active_streams": 0,
+      "pending_header_waits": 0,
+      "pending_json_waits": 0,
+      "peer_closed_connections": 3256,
+      "rate_limit_errors": 184,
+      "resource_mismatches": 1104,
+      "server_errors": 37,
+      "deliberate_resets": 37,
+      "gzip_requests": 5567,
+      "gzip_rejections": 162,
+      "cancelled_active_streams": 1104,
+      "cancelled_header_waits": 2430,
+      "cancelled_json_waits": 1104,
+      "cancelled_prime_streams": 1104,
+      "uptime_seconds": 11035.031000000003
+    },
+    "latency_ms": {
+      "normal": {
+        "samples": 9035,
+        "median": 119.90279999736231,
+        "p95": 237.26690000330564
+      },
+      "json": {
+        "samples": 4416,
+        "median": 124.65555000017048,
+        "p95": 245.11010000423994
+      },
+      "comments": {
+        "samples": 1104,
+        "median": 108.72709999966901,
+        "p95": 233.65999999805354
+      },
+      "large": {
+        "samples": 4416,
+        "median": 143.95339999828138,
+        "p95": 269.21770000626566
+      },
+      "burst": {
+        "samples": 1216,
+        "median": 822.5145500000508,
+        "p95": 1306.0681999995722
+      },
+      "no_gzip": {
+        "samples": 1104,
+        "median": 137.99294999626,
+        "p95": 269.7291000004043
+      },
+      "mismatch": {
+        "samples": 1104,
+        "median": 138.00214999719174,
+        "p95": 255.8573999995133
+      },
+      "noise": {
+        "samples": 1104,
+        "median": 143.65270000052988,
+        "p95": 268.9590000009048
+      },
+      "reset": {
+        "samples": 37,
+        "median": 1116.777399998682,
+        "p95": 1594.4725000008475
+      },
+      "quota": {
+        "samples": 184,
+        "median": 1054.039799997554,
+        "p95": 1504.306100003305
+      },
+      "server_error": {
+        "samples": 37,
+        "median": 1677.7999000041746,
+        "p95": 2401.053100002173
+      }
+    }
   }
 }

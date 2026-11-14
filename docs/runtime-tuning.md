@@ -140,6 +140,16 @@ HTTP/2 was evaluated with local TLS/ALPN. Parallel requests reused one connectio
 
 GitHub Actions is configured to check Windows/Linux with Python 3.10/3.12. The [Windows guide](windows-installation.md) covers installation, restart and rollback while preserving Codex's current model, reasoning, credentials and sessions.
 
+## Endurance results
+
+The unchanged source ran for 3.066 hours in one process: 23,757 successful synthetic requests and 13,184 intentional cancellations, with zero unexpected test failures. The controller exercised slow readers, large/comment-heavy SSE streams, mixed compression bursts, independent credentials, HTTP 415/429 recovery, resource mismatches, deliberate TCP resets and server errors. No real model calls were made and no pool or cache resets were used.
+
+Every ten minutes it repeated a 384-client pre-header cancellation burst. All 19 bursts released pool/admission/quota ownership and produced an HTTP 200 followup on the same process; observed cleanup times were 236.4–408.5 ms. At the final check, pending pool requests, admission waiters, compression jobs, quota references, upstream streams and upstream header/JSON waits were zero, and all 50 admission slots were available.
+
+Peak sampled RSS was 207.3 MiB and peak private memory 194.4 MiB. These are process measurements for this workload, separate from the 1 MiB per-stream queue cap. The graph uses approximately 30-second snapshots; the peaks above come from one-second process measurements and can exceed the plotted points. The final run started after earlier cancellation probes exposed CONNECTING and ACTIVE pool-entry leaks; interrupted/failed earlier runs are excluded from this duration. The test exercises hours of synthetic traffic, not an authenticated Internet route.
+
+![Unchanged-source endurance telemetry](assets/soak-1.6.0.png)
+
 ## Reproduce the loopback comparison
 
 Install `requirements.txt`, then run from a full local clone:
