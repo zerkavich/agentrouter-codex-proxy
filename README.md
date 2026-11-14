@@ -50,10 +50,10 @@ Use the same resource that created the item to access it. [trace_id=...]
 
 1. **Transparent Normal Turns**: Requests preserve their conversation state and original bytes unless image pruning or resource-mismatch recovery requires a change, retaining upstream cache eligibility.
 2. **Instant Self-Healing Fallback**: When Azure OpenAI returns a 400 Resource Mismatch (or an SSE `response.failed` mismatch), the proxy catches the error, converts the payload into a self-contained stateless format (retaining complete conversation history while pruning excess historical screenshots past 35 images), and immediately resubmits.
-3. **Pre-Commit SSE Priming & Rate-Limit Recovery**: Buffers initial `200 OK` `text/event-stream` setup frames long enough to catch early `rate_limit_exceeded` / `response.failed` / empty streams before committing headers to Codex, coordinates a shared cooldown + stagger across concurrent subagent calls, and honors `Retry-After` / reset hints before retrying.
+3. **Pre-Commit SSE Priming & Rate-Limit Recovery**: Inspects initial `200 OK` `text/event-stream` setup frames within byte/frame budgets to catch early `rate_limit_exceeded` / `response.failed` / empty streams before committing headers to Codex, coordinates cooldown and stagger across callers sharing a credential, and honors `Retry-After` / reset hints before retrying. Independent credentials keep independent gates by default; shared-quota mode is available.
 4. **Windows & DNS Resilience**: Provides resilient DNS fallback (`8.214.160.125`, `8.214.161.192`), TCP keep-alive hooks, and a Python 3.12 Windows `ProactorEventLoop` `_call_connection_lost` guard (`WinError 10054`).
 5. **Codex Keeps Streaming**: Codex receives clean `text/event-stream` tokens and `: ping` heartbeats with far fewer interruptions.
-6. **Cancellation Cleanup**: Releases upstream responses even when a client disconnects or downstream delivery fails, preventing leaked connections from exhausting HTTPX's pool.
+6. **Cancellation Cleanup**: Releases pending upstream sends, partially read JSON/error bodies and SSE responses when a client disconnects or downstream delivery fails, preventing abandoned connections from exhausting HTTPX's pool.
 7. **Native Acceleration**: Uses ISA-L gzip and Uvicorn's native HTTP parser, prepares the connection pool during startup, and avoids redundant copying and timer allocation while draining buffered SSE data.
 
 ---
@@ -136,11 +136,23 @@ PROXY_REQUEST_GZIP=1
 PROXY_REQUEST_GZIP_MIN_BYTES=262144
 ```
 
-Compression is disabled by default. Large requests are sampled for compressibility before ISA-L gzip level 1 runs in a worker thread; poorly compressible data keeps its original encoding. Direct Python usage falls back to standard-library gzip when ISA-L is unavailable. The compressed body is reused across retries and rebuilt after recovery changes the payload. Existing `Content-Encoding` headers are preserved. Restart the proxy after changing these settings.
+Compression is disabled by default. Large requests are sampled for compressibility before ISA-L gzip level 1 runs in a dedicated worker pool; poorly compressible data keeps its original encoding. Four workers handle at most 16 submitted jobs by default, leaving the event loop's default executor available for DNS and other work. Saturation forwards the original body. Direct Python usage falls back to standard-library gzip when ISA-L is unavailable. The compressed body is reused across retries and rebuilt after recovery changes the payload. Existing `Content-Encoding` headers are preserved. Restart the proxy after changing these settings.
 
-If the upstream rejects proxy-added gzip with HTTP 415, the proxy retries once using the same decoded payload and original headers. That request stays uncompressed during subsequent retries and resource-mismatch recovery. Client-provided encodings are preserved, a second 415 is forwarded, and compression remains enabled for other requests. Set `PROXY_REQUEST_GZIP=0` and restart if the upstream consistently rejects compression, to avoid the extra rejected attempt.
+If the upstream rejects proxy-added gzip with HTTP 415, the proxy retries once using the same decoded payload and original headers. That request stays uncompressed during subsequent retries and resource-mismatch recovery. For the next 60 seconds, subsequent requests to that upstream with the same credential, organization and project skip rejected gzip. Other credentials remain independent. `PROXY_GZIP_REJECT_TTL_S=0` restores a new probe for each request. Client-provided encodings are preserved and a second 415 is forwarded.
+
+When enough real large unencoded requests are available, compression also considers CPU cost against a conservative estimate of upload savings. On a fast link it can keep a compressible body plain when compression would take longer than the upload time it saves; on a slow link gzip remains useful. `PROXY_GZIP_UPLOAD_MBIT_S=0` learns this hint from recent requests without making speed-test requests. A positive value supplies an explicit rate in Mbit/s. The measured interval includes upstream processing and RTT, so the automatic hint is a lower bound rather than an Internet speed measurement.
 
 `/_health` reports whether compression is enabled, its minimum body size, `request_gzip_backend` (`isal` or `stdlib`), and `connection_pool_initialized`. `/_stats` includes `gzip_payloads`, `gzip_input_bytes`, and `gzip_output_bytes`: these count newly prepared compressed payload versions, so retry traffic is excluded. `gzip_fallbacks` counts HTTP 415 retries without proxy-added gzip; a successful recovery also increments `successful_recoveries`.
+
+## Streaming buffers and independent quotas
+
+Each SSE queue holds at most 1 MiB of data by default, split into pieces no larger than 64 KiB. Small chunks are delivered immediately. When a reader falls behind, the producer waits for room instead of growing the queue. Initial SSE inspection is also bounded by bytes and frame count; the proxy forwards a partial frame verbatim when inspection reaches its budget. Socket, HTTPX and request-body memory are additional to the queue budget.
+
+Disconnect cleanup also covers a pending upstream send before response headers arrive and incomplete JSON/error bodies. The proxy checks for disconnect while those operations are waiting and cancels only the abandoned work, releasing its pool capacity. A response that finishes during the disconnect check is closed if it was never handed to the caller. Cancelled partial uploads are handled before starting upstream work.
+
+A rate limit pauses requests using the same effective credential. This prevents one Windows user's key from delaying another user's independent key, while callers sharing a key still share recovery cooldown and launch staggering. Use `PROXY_RATE_LIMIT_SCOPE=shared` if different keys intentionally share one upstream quota. Credential fingerprints and caches are bounded; raw API keys are not retained in those caches.
+
+See [runtime settings and measured results](docs/runtime-tuning.md) for limits, counters, and a paired comparison with the preceding `main` version.
 
 ## Latency tuning and validation
 
@@ -148,15 +160,17 @@ Install all pinned dependencies with `python -m pip install -r requirements.txt`
 
 Keep `PROXY_VERBOSE=0` for normal use to suppress per-request informational logging. This is the example configuration's default; warnings and errors remain available. Set it to `1` while diagnosing a problem. For an upstream that accepts compressed requests, the optional gzip settings above reduce large uploads without changing the decoded request body.
 
-The following measurements compare the previous payload-reuse implementation with native acceleration on one Windows PC, using the complete loopback HTTP/SSE path and a synthetic upstream. Both variants used optional request gzip; the native variant also used minimal logging. The first request was measured once per server launch; other rows are medians of 40 requests after warm-up.
+Version 1.6.0 adds bounded SSE buffering, dedicated bounded gzip workers, scoped compression hints and cancellation cleanup before response headers arrive. Independent credentials share a proxy without sharing unrelated 429 cooldowns. Upstream admission keeps the existing 50-connection cap and repairs abandoned HTTPcore pool entries while preserving healthy keep-alive connections.
 
-| Scenario | Previous implementation | Native acceleration |
+A fresh adjacent-pair comparison against preceding `main` (a5621cec) collected 360 samples per variant/scenario, with the same installed packages and no real provider calls:
+
+| Scenario | Preceding main median | 1.6.0 median |
 | --- | ---: | ---: |
-| First request after server startup | 688.4 ms | 18.8 ms |
-| Large tool history | 49.5 ms | 28.9 ms |
-| Repeated short request | 11.4 ms | 12.0 ms |
+| Tool-output history | 23.372 ms | 14.528 ms |
+| Repeated gzip rejection | 22.932 ms | 13.791 ms |
+| Short request | 5.414 ms | 5.527 ms |
 
-These numbers measure local time to the first output event, not Internet or AgentRouter response time, and are not a guarantee for another machine. Cancellation checks also covered 60 interrupted streams with no remaining upstream requests or pool timeouts, followed by a successful request.
+These synthetic whole-loopback times include upstream validation. The tool-history gain trades extra plain upload bytes for less compression CPU on the learned fast link; slower-link checks retained gzip. Small healthy requests have a measurable fractional-millisecond overhead. See [runtime settings and measured results](docs/runtime-tuning.md) for p95, original-upstream comparison, source hashes, controlled recovery, endurance evidence and the command to reproduce the benchmark.
 
 ## Health, Diagnostics & Tests
 

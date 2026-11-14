@@ -3,6 +3,9 @@ fastapi==0.115.6
 starlette==0.41.3
 uvicorn==0.34.0
 httpx==0.28.1
+# Pool cleanup uses HTTPcore's tested internal connection-assignment API.
+# Run the real-pool cancellation regressions before upgrading this version.
+httpcore==1.0.9
 # Native acceleration for gzip request bodies and Uvicorn's auto HTTP parser.
 isal==1.9.1
 httptools==0.9.0

@@ -1,0 +1,3923 @@
+{
+  "source_sha256": "8ef7158e275fdc296b69e3fdaa2d0d1c793873109db7ce0252aba8adee12744b",
+  "preceding_main": "a5621cec2de69050daff58b1a21a76739dbf7e3d",
+  "upstream_original": "58ea3133be113474880284e17631cb2451d640f4",
+  "requirements_sha256": "7bbb92da4cbaed2e5e1e4fc6e99a91b5847239ae4011f6f79e21764eeee754e9",
+  "runtime_version": "1.6.0",
+  "real_model_calls": 0,
+  "loopback": {
+    "checked_at": "2026-11-14T00:43:48.642910+00:00",
+    "scope": "Complete loopback HTTP/SSE, including synthetic decompression/hash validation; interleaved adjacent pairs",
+    "real_upstream_requests": 0,
+    "model_generation_ms": 0,
+    "source_sha256": {
+      "baseline": "14f9c423ece746a22b1b896eb0303467e904b5bbec577d0813812a805164de9e",
+      "candidate": "8ef7158e275fdc296b69e3fdaa2d0d1c793873109db7ce0252aba8adee12744b"
+    },
+    "method": "Both servers remain running; adjacent request pairs alternate AB/BA for each fixture; fixture order is shuffled in each cycle",
+    "epochs": 4,
+    "pairs_per_fixture_per_epoch": 90,
+    "variants": {
+      "baseline": {
+        "fixtures": {
+          "small": {
+            "first_output_ms": {
+              "median": 5.4143,
+              "p95": 8.9595,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 2.5791,
+              "p95": 4.312,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.4447,
+              "p95": 3.9384,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.028,
+              "p95": 0.0417,
+              "samples": 360
+            },
+            "input_bytes": 55,
+            "wire_bytes": {
+              "55": 360
+            },
+            "body_preserved": true
+          },
+          "english_history": {
+            "first_output_ms": {
+              "median": 10.4985,
+              "p95": 21.3415,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 5.9516,
+              "p95": 16.3437,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.5227,
+              "p95": 3.9964,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 1.6225,
+              "p95": 2.3492,
+              "samples": 360
+            },
+            "input_bytes": 621285,
+            "wire_bytes": {
+              "5051": 360
+            },
+            "body_preserved": true
+          },
+          "russian_history": {
+            "first_output_ms": {
+              "median": 14.9977,
+              "p95": 27.757,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 8.3544,
+              "p95": 20.33,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.5408,
+              "p95": 4.0147,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 3.1594,
+              "p95": 4.6343,
+              "samples": 360
+            },
+            "input_bytes": 1257285,
+            "wire_bytes": {
+              "11381": 360
+            },
+            "body_preserved": true
+          },
+          "tool_history": {
+            "first_output_ms": {
+              "median": 23.3721,
+              "p95": 36.3729,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 12.9664,
+              "p95": 25.464,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.5842,
+              "p95": 4.0132,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 6.5019,
+              "p95": 8.9673,
+              "samples": 360
+            },
+            "input_bytes": 1090565,
+            "wire_bytes": {
+              "414656": 360
+            },
+            "body_preserved": true
+          },
+          "tool_history_415": {
+            "first_output_ms": {
+              "median": 22.9318,
+              "p95": 36.6767,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 18.4524,
+              "p95": 30.8715,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.8886,
+              "p95": 4.4808,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.9374,
+              "p95": 1.1033,
+              "samples": 360
+            },
+            "input_bytes": 1090565,
+            "wire_bytes": {
+              "1090565": 360
+            },
+            "body_preserved": true
+          },
+          "thirty_images": {
+            "first_output_ms": {
+              "median": 32.1857,
+              "p95": 49.1737,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 25.2679,
+              "p95": 40.1327,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 3.6881,
+              "p95": 5.4394,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 2.5179,
+              "p95": 2.9605,
+              "samples": 360
+            },
+            "input_bytes": 3003195,
+            "wire_bytes": {
+              "3003195": 360
+            },
+            "body_preserved": true
+          }
+        },
+        "delayed_200ms_first_output_ms": {
+          "median": 203.4246,
+          "p95": 205.6334,
+          "samples": 6
+        }
+      },
+      "candidate": {
+        "fixtures": {
+          "small": {
+            "first_output_ms": {
+              "median": 5.5271,
+              "p95": 9.1365,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 2.6544,
+              "p95": 4.3127,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.4819,
+              "p95": 3.9652,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.0275,
+              "p95": 0.0414,
+              "samples": 360
+            },
+            "input_bytes": 55,
+            "wire_bytes": {
+              "55": 360
+            },
+            "body_preserved": true
+          },
+          "english_history": {
+            "first_output_ms": {
+              "median": 11.0832,
+              "p95": 18.1789,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 6.115,
+              "p95": 9.9881,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.5536,
+              "p95": 4.1298,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 1.653,
+              "p95": 2.425,
+              "samples": 360
+            },
+            "input_bytes": 621285,
+            "wire_bytes": {
+              "5051": 360
+            },
+            "body_preserved": true
+          },
+          "russian_history": {
+            "first_output_ms": {
+              "median": 15.1617,
+              "p95": 24.4888,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 8.5769,
+              "p95": 14.5352,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.6123,
+              "p95": 4.1196,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 3.2223,
+              "p95": 4.6074,
+              "samples": 360
+            },
+            "input_bytes": 1257285,
+            "wire_bytes": {
+              "11381": 360
+            },
+            "body_preserved": true
+          },
+          "tool_history": {
+            "first_output_ms": {
+              "median": 14.5284,
+              "p95": 28.6042,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 9.8964,
+              "p95": 22.5432,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.7717,
+              "p95": 4.2825,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.9437,
+              "p95": 1.135,
+              "samples": 360
+            },
+            "input_bytes": 1090565,
+            "wire_bytes": {
+              "414656": 8,
+              "1090565": 352
+            },
+            "body_preserved": true
+          },
+          "tool_history_415": {
+            "first_output_ms": {
+              "median": 13.7911,
+              "p95": 25.8608,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 9.407,
+              "p95": 20.9051,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.8311,
+              "p95": 4.3409,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.9428,
+              "p95": 1.1233,
+              "samples": 360
+            },
+            "input_bytes": 1090565,
+            "wire_bytes": {
+              "1090565": 360
+            },
+            "body_preserved": true
+          },
+          "thirty_images": {
+            "first_output_ms": {
+              "median": 32.9364,
+              "p95": 49.6184,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 25.8581,
+              "p95": 41.325,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 3.7263,
+              "p95": 5.3148,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 2.5261,
+              "p95": 2.9599,
+              "samples": 360
+            },
+            "input_bytes": 3003195,
+            "wire_bytes": {
+              "3003195": 360
+            },
+            "body_preserved": true
+          }
+        },
+        "delayed_200ms_first_output_ms": {
+          "median": 193.9389,
+          "p95": 206.6906,
+          "samples": 6
+        }
+      }
+    },
+    "paired": {
+      "small": {
+        "pairs": 360,
+        "median_saved_ms": -0.1342500000000002,
+        "median_saved_percent": -2.4278980225553304,
+        "candidate_faster_pairs": 111,
+        "median_saved_ms_bootstrap_95": {
+          "lower": -0.1631499999999999,
+          "upper": -0.09850000000000048,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": -3.081014097905055,
+          "upper": -1.9577156641869098,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 5.7974,
+              "p95": 8.925,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 5.7668,
+              "p95": 9.382,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 5.3045,
+              "p95": 8.9595,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 5.3548,
+              "p95": 8.8378,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 6.9759,
+              "p95": 9.3212,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 7.0886,
+              "p95": 9.8899,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 5.3028,
+              "p95": 7.6168,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 5.7138,
+              "p95": 7.8665,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 5.1198,
+              "p95": 8.0894,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 5.2157,
+              "p95": 8.1261,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 5.1037,
+              "p95": 8.9974,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 5.2455,
+              "p95": 9.4754,
+              "samples": 90
+            }
+          }
+        }
+      },
+      "english_history": {
+        "pairs": 360,
+        "median_saved_ms": -0.23679999999999968,
+        "median_saved_percent": -2.295179720060936,
+        "candidate_faster_pairs": 126,
+        "median_saved_ms_bootstrap_95": {
+          "lower": -0.29930000000000057,
+          "upper": -0.18534999999999968,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": -2.9132356090249,
+          "upper": -1.675328400765319,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 10.4985,
+              "p95": 21.1865,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 11.0675,
+              "p95": 18.6012,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 10.4903,
+              "p95": 21.3873,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 11.1375,
+              "p95": 17.02,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 13.3697,
+              "p95": 25.3104,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 13.4011,
+              "p95": 18.5943,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 10.3273,
+              "p95": 16.6272,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 10.6712,
+              "p95": 14.9973,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 10.234,
+              "p95": 21.1865,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 10.5431,
+              "p95": 18.7066,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 10.2431,
+              "p95": 21.1751,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 10.5408,
+              "p95": 19.4858,
+              "samples": 90
+            }
+          }
+        }
+      },
+      "russian_history": {
+        "pairs": 360,
+        "median_saved_ms": -0.1695000000000002,
+        "median_saved_percent": -1.0938941275802416,
+        "candidate_faster_pairs": 149,
+        "median_saved_ms_bootstrap_95": {
+          "lower": -0.31180000000000163,
+          "upper": -0.06580000000000119,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": -2.1549602870263973,
+          "upper": -0.40185291357780484,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 15.1526,
+              "p95": 25.3867,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 15.0922,
+              "p95": 24.4888,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 14.9226,
+              "p95": 28.4089,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 15.2503,
+              "p95": 24.4757,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 19.0147,
+              "p95": 28.0564,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 18.6609,
+              "p95": 24.4757,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 14.8125,
+              "p95": 24.9513,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 14.406,
+              "p95": 19.8959,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 14.2682,
+              "p95": 30.8937,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 14.4838,
+              "p95": 26.3899,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 14.3725,
+              "p95": 25.5815,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 14.8121,
+              "p95": 25.8558,
+              "samples": 90
+            }
+          }
+        }
+      },
+      "tool_history": {
+        "pairs": 360,
+        "median_saved_ms": 8.6616,
+        "median_saved_percent": 38.998066848433524,
+        "candidate_faster_pairs": 334,
+        "median_saved_ms_bootstrap_95": {
+          "lower": 8.537199999999999,
+          "upper": 8.8304,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": 38.235359980772955,
+          "upper": 39.442502252587786,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 24.0967,
+              "p95": 39.2821,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 14.5284,
+              "p95": 29.389,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 22.6226,
+              "p95": 35.7542,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 14.5194,
+              "p95": 27.6238,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 28.2239,
+              "p95": 36.9469,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 18.3278,
+              "p95": 30.3949,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 23.0452,
+              "p95": 38.1013,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 14.1179,
+              "p95": 26.1932,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 21.7518,
+              "p95": 30.0786,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 13.2094,
+              "p95": 29.389,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 22.6226,
+              "p95": 39.1108,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 13.5923,
+              "p95": 27.6238,
+              "samples": 90
+            }
+          }
+        }
+      },
+      "tool_history_415": {
+        "pairs": 360,
+        "median_saved_ms": 8.628499999999999,
+        "median_saved_percent": 39.686381370469775,
+        "candidate_faster_pairs": 341,
+        "median_saved_ms_bootstrap_95": {
+          "lower": 8.3661,
+          "upper": 8.9795,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": 39.146127517551406,
+          "upper": 40.33769048721288,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 23.4834,
+              "p95": 36.6767,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 13.9543,
+              "p95": 24.379,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 22.2139,
+              "p95": 36.549,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 13.6969,
+              "p95": 25.9168,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 28.384,
+              "p95": 38.7054,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 16.8798,
+              "p95": 30.2701,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 22.5292,
+              "p95": 31.3525,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 13.6704,
+              "p95": 22.2845,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 21.3931,
+              "p95": 32.7888,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 12.6827,
+              "p95": 24.379,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 21.8974,
+              "p95": 39.3253,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 13.1532,
+              "p95": 24.5891,
+              "samples": 90
+            }
+          }
+        }
+      },
+      "thirty_images": {
+        "pairs": 360,
+        "median_saved_ms": -0.18015000000000114,
+        "median_saved_percent": -0.5959952298105087,
+        "candidate_faster_pairs": 159,
+        "median_saved_ms_bootstrap_95": {
+          "lower": -0.497799999999998,
+          "upper": -0.02859999999999907,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": -1.4658090724441353,
+          "upper": -0.059335391829995476,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 32.6629,
+              "p95": 49.4206,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 32.4098,
+              "p95": 51.5667,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 32.1,
+              "p95": 48.2153,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 33.4698,
+              "p95": 48.2294,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 39.7416,
+              "p95": 50.6994,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 39.0705,
+              "p95": 51.8731,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 31.1623,
+              "p95": 45.7165,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 31.6407,
+              "p95": 44.8435,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 30.6201,
+              "p95": 45.5668,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 30.818,
+              "p95": 45.3409,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 31.1718,
+              "p95": 50.6983,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 32.1893,
+              "p95": 61.1362,
+              "samples": 90
+            }
+          }
+        }
+      }
+    },
+    "receipt": "receipt.json",
+    "raw_pairs": "pairs.jsonl"
+  },
+  "measurement_environment": {
+    "python": "3.12.6",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "packages": {
+      "httpx": "0.28.1",
+      "httpcore": "1.0.9",
+      "anyio": "4.16.0",
+      "starlette": "0.41.3",
+      "uvicorn": "0.34.0",
+      "httptools": "0.9.0",
+      "isal": "1.9.1"
+    },
+    "started_utc": "2026-11-14T00:42:14.165832+00:00",
+    "finished_utc": "2026-11-14T00:43:48.631172+00:00",
+    "benchmark_sha256": "f55fd3f8c8bfbfaafec531dbf5761794c97e712a153face9af9d9e82efb24b5a",
+    "server_harness_sha256": "1cf584201f5ddf57d571433f2225660cd1bc2949d49b34423eb6fbda2a44548d",
+    "raw_pairs_sha256": "434b36e2f9fa701fc2409192129c93266a8eb0116dab05f5f0e519bfaf89841e"
+  },
+  "gzip_rejected_attempts_including_warmup": {
+    "baseline": 366,
+    "candidate": 2
+  },
+  "controlled_behavior": {
+    "baseline": {
+      "profile": "baseline",
+      "checked_at": "2026-11-14T00:50:26.626254+00:00",
+      "source_sha256": "14f9c423ece746a22b1b896eb0303467e904b5bbec577d0813812a805164de9e",
+      "real_model_calls": 0,
+      "buffering": {
+        "input_bytes": 33554432,
+        "queued_payload_bytes": 33554432,
+        "queued_items": 513,
+        "upstream_chunks_read": 512,
+        "producer_blocked_by_backpressure": false,
+        "tracemalloc_peak_bytes": 33586425,
+        "scope": "32 MiB generated response; downstream does not read"
+      },
+      "independent_quotas": {
+        "independent_key_b": {
+          "median_ms": 989.5075999957044,
+          "p95_ms": 1126.6478999968967,
+          "samples_ms": [
+            706.5138000034494,
+            989.5075999957044,
+            1126.6478999968967,
+            1054.2434000017238,
+            866.8537999983528
+          ]
+        },
+        "limited_key_a": {
+          "median_ms": 1022.0872999998392,
+          "p95_ms": 1171.065800001088,
+          "samples_ms": [
+            741.3573000012548,
+            1022.0872999998392,
+            1171.065800001088,
+            1087.484100004076,
+            911.0539999965113
+          ]
+        },
+        "scope": "Key A gets one HTTP 429; key B is independent; in-memory upstream; 10 ms recovery staggering"
+      },
+      "repeated_gzip_rejection": {
+        "downstream_requests": 10,
+        "upstream_requests": 20,
+        "rejected_gzip_attempts": 10,
+        "elapsed_ms": 52.13460000231862,
+        "decoded_body_preserved": true
+      }
+    },
+    "candidate": {
+      "profile": "candidate",
+      "checked_at": "2026-11-14T00:50:32.919534+00:00",
+      "source_sha256": "8ef7158e275fdc296b69e3fdaa2d0d1c793873109db7ce0252aba8adee12744b",
+      "real_model_calls": 0,
+      "buffering": {
+        "input_bytes": 33554432,
+        "queued_payload_bytes": 1048576,
+        "queued_items": 16,
+        "upstream_chunks_read": 17,
+        "producer_blocked_by_backpressure": true,
+        "tracemalloc_peak_bytes": 1126314,
+        "scope": "32 MiB generated response; downstream does not read"
+      },
+      "independent_quotas": {
+        "independent_key_b": {
+          "median_ms": 1.0516000038478523,
+          "p95_ms": 18.846600003598724,
+          "samples_ms": [
+            1.2425999957486056,
+            18.846600003598724,
+            1.0516000038478523,
+            0.9734999985084869,
+            1.0045999952126294
+          ]
+        },
+        "limited_key_a": {
+          "median_ms": 955.94909999636,
+          "p95_ms": 1040.5638000011095,
+          "samples_ms": [
+            831.2804000015603,
+            955.94909999636,
+            1008.2869000034407,
+            1040.5638000011095,
+            715.3651999979047
+          ]
+        },
+        "scope": "Key A gets one HTTP 429; key B is independent; in-memory upstream; 10 ms recovery staggering"
+      },
+      "repeated_gzip_rejection": {
+        "downstream_requests": 10,
+        "upstream_requests": 11,
+        "rejected_gzip_attempts": 1,
+        "elapsed_ms": 24.351000000024214,
+        "decoded_body_preserved": true
+      }
+    }
+  },
+  "software_shaped_upload": {
+    "source_sha256": {
+      "baseline": "14f9c423ece746a22b1b896eb0303467e904b5bbec577d0813812a805164de9e",
+      "candidate": "8ef7158e275fdc296b69e3fdaa2d0d1c793873109db7ce0252aba8adee12744b"
+    },
+    "phases": {
+      "slow": {
+        "phase": "slow",
+        "shaped_upload_mbit_s": 20,
+        "added_header_delay_ms": 80,
+        "variants": {
+          "baseline": {
+            "fixtures": {
+              "small": {
+                "first_output_ms": {
+                  "median": 92.9646,
+                  "p95": 99.7297,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "55": 12
+                },
+                "body_preserved": true
+              },
+              "english_history": {
+                "first_output_ms": {
+                  "median": 91.3842,
+                  "p95": 111.5282,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "5051": 12
+                },
+                "body_preserved": true
+              },
+              "tool_history": {
+                "first_output_ms": {
+                  "median": 273.336,
+                  "p95": 284.6143,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "414656": 12
+                },
+                "body_preserved": true
+              },
+              "tool_history_415": {
+                "first_output_ms": {
+                  "median": 784.1509,
+                  "p95": 809.3626,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "1090565": 12
+                },
+                "body_preserved": true
+              }
+            }
+          },
+          "candidate": {
+            "fixtures": {
+              "small": {
+                "first_output_ms": {
+                  "median": 88.2289,
+                  "p95": 97.4792,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "55": 12
+                },
+                "body_preserved": true
+              },
+              "english_history": {
+                "first_output_ms": {
+                  "median": 98.2747,
+                  "p95": 110.991,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "5051": 12
+                },
+                "body_preserved": true
+              },
+              "tool_history": {
+                "first_output_ms": {
+                  "median": 270.5222,
+                  "p95": 335.9451,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "414656": 12
+                },
+                "body_preserved": true
+              },
+              "tool_history_415": {
+                "first_output_ms": {
+                  "median": 531.9782,
+                  "p95": 540.1959,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "1090565": 12
+                },
+                "body_preserved": true
+              }
+            }
+          }
+        },
+        "metadata_before": {
+          "baseline": {
+            "health": {
+              "status": "ok",
+              "proxy": "agentrouter-codex-proxy",
+              "version": "1.5.0",
+              "dns_fallback_active": true,
+              "max_images_per_request": 35,
+              "request_gzip_enabled": true,
+              "request_gzip_min_bytes": 262144,
+              "request_gzip_backend": "isal",
+              "connection_pool_initialized": true,
+              "listen": "127.0.0.1:56834",
+              "uptime_seconds": 14.0,
+              "upstream": "http://127.0.0.1:56834/_synthetic_upstream",
+              "stats": {
+                "requests_total": 11,
+                "responses_requests": 11,
+                "resource_mismatches_caught": 0,
+                "stateless_fallbacks_applied": 0,
+                "successful_recoveries": 2,
+                "transport_retries": 0,
+                "pool_timeouts": 0,
+                "gzip_payloads": 6,
+                "gzip_input_bytes": 5604830,
+                "gzip_output_bytes": 1668726,
+                "gzip_fallbacks": 2,
+                "rate_limits_caught": 0,
+                "stream_precommit_retries": 0,
+                "rate_limit_wait_seconds_total": 0.0,
+                "images_pruned_total": 0,
+                "start_time": 1794617478.993242
+              }
+            },
+            "upstream_requests": 0,
+            "upstream_counts": {
+              "requests": 13,
+              "wire_bytes": 12859551,
+              "plain_successes": 7,
+              "gzip_successes": 4,
+              "gzip_rejections": 2
+            },
+            "shaped_upload_mbit_s": 20.0,
+            "added_header_delay_ms": 80.0
+          },
+          "candidate": {
+            "health": {
+              "status": "ok",
+              "proxy": "agentrouter-codex-proxy",
+              "version": "1.6.0",
+              "dns_fallback_active": true,
+              "max_images_per_request": 35,
+              "request_gzip_enabled": true,
+              "request_gzip_min_bytes": 262144,
+              "request_gzip_backend": "isal",
+              "gzip_workers": 4,
+              "gzip_max_jobs": 16,
+              "gzip_jobs_inflight": 0,
+              "gzip_rejection_cache_entries": 1,
+              "connection_pool_initialized": true,
+              "upstream_max_inflight": 50,
+              "upstream_slots_in_use": 0,
+              "upstream_slot_waiters": 0,
+              "upstream_pool_cleanup_active": true,
+              "sse_buffer_max_bytes": 1048576,
+              "sse_prime_max_bytes": 262144,
+              "sse_prime_max_frames": 1024,
+              "rate_limit_scope": "credential",
+              "rate_limit_partitions": 2,
+              "listen": "127.0.0.1:56835",
+              "uptime_seconds": 13.9,
+              "upstream": "http://127.0.0.1:56835/_synthetic_upstream",
+              "stats": {
+                "requests_total": 11,
+                "responses_requests": 11,
+                "resource_mismatches_caught": 0,
+                "stateless_fallbacks_applied": 0,
+                "successful_recoveries": 1,
+                "transport_retries": 0,
+                "pool_timeouts": 0,
+                "upstream_capacity_waits": 0,
+                "upstream_unstarted_connections_reclaimed": 0,
+                "upstream_orphaned_connections_reclaimed": 0,
+                "client_disconnects_during_upload": 0,
+                "upstream_disconnect_cancellations": 0,
+                "gzip_payloads": 5,
+                "gzip_input_bytes": 4514265,
+                "gzip_output_bytes": 1254070,
+                "gzip_fallbacks": 1,
+                "gzip_cached_rejection_skips": 1,
+                "gzip_busy_skips": 0,
+                "gzip_cost_skips": 0,
+                "gzip_evaluations": 8,
+                "gzip_preparation_seconds_total": 0.01580340001237346,
+                "sse_backpressure_events": 0,
+                "sse_prime_buffer_commits": 0,
+                "rate_limit_overflow_requests": 0,
+                "rate_limits_caught": 0,
+                "stream_precommit_retries": 0,
+                "rate_limit_wait_seconds_total": 0.0,
+                "images_pruned_total": 0,
+                "start_time": 1794617479.0344052
+              }
+            },
+            "upstream_requests": 0,
+            "upstream_counts": {
+              "requests": 12,
+              "wire_bytes": 12444895,
+              "plain_successes": 7,
+              "gzip_successes": 4,
+              "gzip_rejections": 1
+            },
+            "shaped_upload_mbit_s": 20.0,
+            "added_header_delay_ms": 80.0
+          }
+        },
+        "metadata_after": {
+          "baseline": {
+            "health": {
+              "status": "ok",
+              "proxy": "agentrouter-codex-proxy",
+              "version": "1.5.0",
+              "dns_fallback_active": true,
+              "max_images_per_request": 35,
+              "request_gzip_enabled": true,
+              "request_gzip_min_bytes": 262144,
+              "request_gzip_backend": "isal",
+              "connection_pool_initialized": true,
+              "listen": "127.0.0.1:56834",
+              "uptime_seconds": 40.8,
+              "upstream": "http://127.0.0.1:56834/_synthetic_upstream",
+              "stats": {
+                "requests_total": 59,
+                "responses_requests": 59,
+                "resource_mismatches_caught": 0,
+                "stateless_fallbacks_applied": 0,
+                "successful_recoveries": 14,
+                "transport_retries": 0,
+                "pool_timeouts": 0,
+                "gzip_payloads": 42,
+                "gzip_input_bytes": 39233810,
+                "gzip_output_bytes": 11681082,
+                "gzip_fallbacks": 14,
+                "rate_limits_caught": 0,
+                "stream_precommit_retries": 0,
+                "rate_limit_wait_seconds_total": 0.0,
+                "images_pruned_total": 0,
+                "start_time": 1794617478.993242
+              }
+            },
+            "upstream_requests": 0,
+            "upstream_counts": {
+              "requests": 73,
+              "wire_bytes": 35959347,
+              "plain_successes": 31,
+              "gzip_successes": 28,
+              "gzip_rejections": 14
+            },
+            "shaped_upload_mbit_s": 20.0,
+            "added_header_delay_ms": 80.0
+          },
+          "candidate": {
+            "health": {
+              "status": "ok",
+              "proxy": "agentrouter-codex-proxy",
+              "version": "1.6.0",
+              "dns_fallback_active": true,
+              "max_images_per_request": 35,
+              "request_gzip_enabled": true,
+              "request_gzip_min_bytes": 262144,
+              "request_gzip_backend": "isal",
+              "gzip_workers": 4,
+              "gzip_max_jobs": 16,
+              "gzip_jobs_inflight": 0,
+              "gzip_rejection_cache_entries": 1,
+              "connection_pool_initialized": true,
+              "upstream_max_inflight": 50,
+              "upstream_slots_in_use": 0,
+              "upstream_slot_waiters": 0,
+              "upstream_pool_cleanup_active": true,
+              "sse_buffer_max_bytes": 1048576,
+              "sse_prime_max_bytes": 262144,
+              "sse_prime_max_frames": 1024,
+              "rate_limit_scope": "credential",
+              "rate_limit_partitions": 2,
+              "listen": "127.0.0.1:56835",
+              "uptime_seconds": 40.8,
+              "upstream": "http://127.0.0.1:56835/_synthetic_upstream",
+              "stats": {
+                "requests_total": 59,
+                "responses_requests": 59,
+                "resource_mismatches_caught": 0,
+                "stateless_fallbacks_applied": 0,
+                "successful_recoveries": 1,
+                "transport_retries": 0,
+                "pool_timeouts": 0,
+                "upstream_capacity_waits": 0,
+                "upstream_unstarted_connections_reclaimed": 0,
+                "upstream_orphaned_connections_reclaimed": 0,
+                "client_disconnects_during_upload": 0,
+                "upstream_disconnect_cancellations": 0,
+                "gzip_payloads": 29,
+                "gzip_input_bytes": 25056465,
+                "gzip_output_bytes": 6290554,
+                "gzip_fallbacks": 1,
+                "gzip_cached_rejection_skips": 13,
+                "gzip_busy_skips": 0,
+                "gzip_cost_skips": 0,
+                "gzip_evaluations": 32,
+                "gzip_preparation_seconds_total": 0.07652629999938654,
+                "sse_backpressure_events": 0,
+                "sse_prime_buffer_commits": 0,
+                "rate_limit_overflow_requests": 0,
+                "rate_limits_caught": 0,
+                "stream_precommit_retries": 0,
+                "rate_limit_wait_seconds_total": 0.0,
+                "images_pruned_total": 0,
+                "start_time": 1794617479.0344052
+              }
+            },
+            "upstream_requests": 0,
+            "upstream_counts": {
+              "requests": 60,
+              "wire_bytes": 30568819,
+              "plain_successes": 31,
+              "gzip_successes": 28,
+              "gzip_rejections": 1
+            },
+            "shaped_upload_mbit_s": 20.0,
+            "added_header_delay_ms": 80.0
+          }
+        }
+      },
+      "medium": {
+        "phase": "medium",
+        "shaped_upload_mbit_s": 100,
+        "added_header_delay_ms": 25,
+        "variants": {
+          "baseline": {
+            "fixtures": {
+              "small": {
+                "first_output_ms": {
+                  "median": 33.6156,
+                  "p95": 57.9727,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "55": 12
+                },
+                "body_preserved": true
+              },
+              "english_history": {
+                "first_output_ms": {
+                  "median": 44.3144,
+                  "p95": 65.7801,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "5051": 12
+                },
+                "body_preserved": true
+              },
+              "tool_history": {
+                "first_output_ms": {
+                  "median": 91.6679,
+                  "p95": 144.2406,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "414656": 12
+                },
+                "body_preserved": true
+              },
+              "tool_history_415": {
+                "first_output_ms": {
+                  "median": 205.9446,
+                  "p95": 277.947,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "1090565": 12
+                },
+                "body_preserved": true
+              }
+            }
+          },
+          "candidate": {
+            "fixtures": {
+              "small": {
+                "first_output_ms": {
+                  "median": 34.8757,
+                  "p95": 38.2659,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "55": 12
+                },
+                "body_preserved": true
+              },
+              "english_history": {
+                "first_output_ms": {
+                  "median": 43.7457,
+                  "p95": 54.5338,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "5051": 12
+                },
+                "body_preserved": true
+              },
+              "tool_history": {
+                "first_output_ms": {
+                  "median": 93.4819,
+                  "p95": 193.2933,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "414656": 12
+                },
+                "body_preserved": true
+              },
+              "tool_history_415": {
+                "first_output_ms": {
+                  "median": 133.7948,
+                  "p95": 181.0028,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "1090565": 12
+                },
+                "body_preserved": true
+              }
+            }
+          }
+        },
+        "metadata_before": {
+          "baseline": {
+            "health": {
+              "status": "ok",
+              "proxy": "agentrouter-codex-proxy",
+              "version": "1.5.0",
+              "dns_fallback_active": true,
+              "max_images_per_request": 35,
+              "request_gzip_enabled": true,
+              "request_gzip_min_bytes": 262144,
+              "request_gzip_backend": "isal",
+              "connection_pool_initialized": true,
+              "listen": "127.0.0.1:57048",
+              "uptime_seconds": 4.5,
+              "upstream": "http://127.0.0.1:57048/_synthetic_upstream",
+              "stats": {
+                "requests_total": 11,
+                "responses_requests": 11,
+                "resource_mismatches_caught": 0,
+                "stateless_fallbacks_applied": 0,
+                "successful_recoveries": 2,
+                "transport_retries": 0,
+                "pool_timeouts": 0,
+                "gzip_payloads": 6,
+                "gzip_input_bytes": 5604830,
+                "gzip_output_bytes": 1668726,
+                "gzip_fallbacks": 2,
+                "rate_limits_caught": 0,
+                "stream_precommit_retries": 0,
+                "rate_limit_wait_seconds_total": 0.0,
+                "images_pruned_total": 0,
+                "start_time": 1794617521.7006593
+              }
+            },
+            "upstream_requests": 0,
+            "upstream_counts": {
+              "requests": 13,
+              "wire_bytes": 12859551,
+              "plain_successes": 7,
+              "gzip_successes": 4,
+              "gzip_rejections": 2
+            },
+            "shaped_upload_mbit_s": 100.0,
+            "added_header_delay_ms": 25.0
+          },
+          "candidate": {
+            "health": {
+              "status": "ok",
+              "proxy": "agentrouter-codex-proxy",
+              "version": "1.6.0",
+              "dns_fallback_active": true,
+              "max_images_per_request": 35,
+              "request_gzip_enabled": true,
+              "request_gzip_min_bytes": 262144,
+              "request_gzip_backend": "isal",
+              "gzip_workers": 4,
+              "gzip_max_jobs": 16,
+              "gzip_jobs_inflight": 0,
+              "gzip_rejection_cache_entries": 1,
+              "connection_pool_initialized": true,
+              "upstream_max_inflight": 50,
+              "upstream_slots_in_use": 0,
+              "upstream_slot_waiters": 0,
+              "upstream_pool_cleanup_active": true,
+              "sse_buffer_max_bytes": 1048576,
+              "sse_prime_max_bytes": 262144,
+              "sse_prime_max_frames": 1024,
+              "rate_limit_scope": "credential",
+              "rate_limit_partitions": 2,
+              "listen": "127.0.0.1:57049",
+              "uptime_seconds": 4.5,
+              "upstream": "http://127.0.0.1:57049/_synthetic_upstream",
+              "stats": {
+                "requests_total": 11,
+                "responses_requests": 11,
+                "resource_mismatches_caught": 0,
+                "stateless_fallbacks_applied": 0,
+                "successful_recoveries": 1,
+                "transport_retries": 0,
+                "pool_timeouts": 0,
+                "upstream_capacity_waits": 0,
+                "upstream_unstarted_connections_reclaimed": 0,
+                "upstream_orphaned_connections_reclaimed": 0,
+                "client_disconnects_during_upload": 0,
+                "upstream_disconnect_cancellations": 0,
+                "gzip_payloads": 5,
+                "gzip_input_bytes": 4514265,
+                "gzip_output_bytes": 1254070,
+                "gzip_fallbacks": 1,
+                "gzip_cached_rejection_skips": 1,
+                "gzip_busy_skips": 0,
+                "gzip_cost_skips": 0,
+                "gzip_evaluations": 8,
+                "gzip_preparation_seconds_total": 0.015558099999907427,
+                "sse_backpressure_events": 0,
+                "sse_prime_buffer_commits": 0,
+                "rate_limit_overflow_requests": 0,
+                "rate_limits_caught": 0,
+                "stream_precommit_retries": 0,
+                "rate_limit_wait_seconds_total": 0.0,
+                "images_pruned_total": 0,
+                "start_time": 1794617521.690285
+              }
+            },
+            "upstream_requests": 0,
+            "upstream_counts": {
+              "requests": 12,
+              "wire_bytes": 12444895,
+              "plain_successes": 7,
+              "gzip_successes": 4,
+              "gzip_rejections": 1
+            },
+            "shaped_upload_mbit_s": 100.0,
+            "added_header_delay_ms": 25.0
+          }
+        },
+        "metadata_after": {
+          "baseline": {
+            "health": {
+              "status": "ok",
+              "proxy": "agentrouter-codex-proxy",
+              "version": "1.5.0",
+              "dns_fallback_active": true,
+              "max_images_per_request": 35,
+              "request_gzip_enabled": true,
+              "request_gzip_min_bytes": 262144,
+              "request_gzip_backend": "isal",
+              "connection_pool_initialized": true,
+              "listen": "127.0.0.1:57048",
+              "uptime_seconds": 13.0,
+              "upstream": "http://127.0.0.1:57048/_synthetic_upstream",
+              "stats": {
+                "requests_total": 59,
+                "responses_requests": 59,
+                "resource_mismatches_caught": 0,
+                "stateless_fallbacks_applied": 0,
+                "successful_recoveries": 14,
+                "transport_retries": 0,
+                "pool_timeouts": 0,
+                "gzip_payloads": 42,
+                "gzip_input_bytes": 39233810,
+                "gzip_output_bytes": 11681082,
+                "gzip_fallbacks": 14,
+                "rate_limits_caught": 0,
+                "stream_precommit_retries": 0,
+                "rate_limit_wait_seconds_total": 0.0,
+                "images_pruned_total": 0,
+                "start_time": 1794617521.7006593
+              }
+            },
+            "upstream_requests": 0,
+            "upstream_counts": {
+              "requests": 73,
+              "wire_bytes": 35959347,
+              "plain_successes": 31,
+              "gzip_successes": 28,
+              "gzip_rejections": 14
+            },
+            "shaped_upload_mbit_s": 100.0,
+            "added_header_delay_ms": 25.0
+          },
+          "candidate": {
+            "health": {
+              "status": "ok",
+              "proxy": "agentrouter-codex-proxy",
+              "version": "1.6.0",
+              "dns_fallback_active": true,
+              "max_images_per_request": 35,
+              "request_gzip_enabled": true,
+              "request_gzip_min_bytes": 262144,
+              "request_gzip_backend": "isal",
+              "gzip_workers": 4,
+              "gzip_max_jobs": 16,
+              "gzip_jobs_inflight": 0,
+              "gzip_rejection_cache_entries": 1,
+              "connection_pool_initialized": true,
+              "upstream_max_inflight": 50,
+              "upstream_slots_in_use": 0,
+              "upstream_slot_waiters": 0,
+              "upstream_pool_cleanup_active": true,
+              "sse_buffer_max_bytes": 1048576,
+              "sse_prime_max_bytes": 262144,
+              "sse_prime_max_frames": 1024,
+              "rate_limit_scope": "credential",
+              "rate_limit_partitions": 2,
+              "listen": "127.0.0.1:57049",
+              "uptime_seconds": 13.0,
+              "upstream": "http://127.0.0.1:57049/_synthetic_upstream",
+              "stats": {
+                "requests_total": 59,
+                "responses_requests": 59,
+                "resource_mismatches_caught": 0,
+                "stateless_fallbacks_applied": 0,
+                "successful_recoveries": 1,
+                "transport_retries": 0,
+                "pool_timeouts": 0,
+                "upstream_capacity_waits": 0,
+                "upstream_unstarted_connections_reclaimed": 0,
+                "upstream_orphaned_connections_reclaimed": 0,
+                "client_disconnects_during_upload": 0,
+                "upstream_disconnect_cancellations": 0,
+                "gzip_payloads": 29,
+                "gzip_input_bytes": 25056465,
+                "gzip_output_bytes": 6290554,
+                "gzip_fallbacks": 1,
+                "gzip_cached_rejection_skips": 13,
+                "gzip_busy_skips": 0,
+                "gzip_cost_skips": 0,
+                "gzip_evaluations": 32,
+                "gzip_preparation_seconds_total": 0.1080980000042473,
+                "sse_backpressure_events": 0,
+                "sse_prime_buffer_commits": 0,
+                "rate_limit_overflow_requests": 0,
+                "rate_limits_caught": 0,
+                "stream_precommit_retries": 0,
+                "rate_limit_wait_seconds_total": 0.0,
+                "images_pruned_total": 0,
+                "start_time": 1794617521.690285
+              }
+            },
+            "upstream_requests": 0,
+            "upstream_counts": {
+              "requests": 60,
+              "wire_bytes": 30568819,
+              "plain_successes": 31,
+              "gzip_successes": 28,
+              "gzip_rejections": 1
+            },
+            "shaped_upload_mbit_s": 100.0,
+            "added_header_delay_ms": 25.0
+          }
+        }
+      },
+      "fast": {
+        "phase": "fast",
+        "shaped_upload_mbit_s": 1000,
+        "added_header_delay_ms": 0,
+        "variants": {
+          "baseline": {
+            "fixtures": {
+              "small": {
+                "first_output_ms": {
+                  "median": 10.1059,
+                  "p95": 66.191,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "55": 12
+                },
+                "body_preserved": true
+              },
+              "english_history": {
+                "first_output_ms": {
+                  "median": 19.7428,
+                  "p95": 22.7328,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "5051": 12
+                },
+                "body_preserved": true
+              },
+              "tool_history": {
+                "first_output_ms": {
+                  "median": 40.8881,
+                  "p95": 49.2103,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "414656": 12
+                },
+                "body_preserved": true
+              },
+              "tool_history_415": {
+                "first_output_ms": {
+                  "median": 48.6823,
+                  "p95": 83.1491,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "1090565": 12
+                },
+                "body_preserved": true
+              }
+            }
+          },
+          "candidate": {
+            "fixtures": {
+              "small": {
+                "first_output_ms": {
+                  "median": 9.9248,
+                  "p95": 12.8143,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "55": 12
+                },
+                "body_preserved": true
+              },
+              "english_history": {
+                "first_output_ms": {
+                  "median": 21.3109,
+                  "p95": 32.6708,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "5051": 12
+                },
+                "body_preserved": true
+              },
+              "tool_history": {
+                "first_output_ms": {
+                  "median": 33.8639,
+                  "p95": 42.1823,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "1090565": 12
+                },
+                "body_preserved": true
+              },
+              "tool_history_415": {
+                "first_output_ms": {
+                  "median": 30.4843,
+                  "p95": 33.9661,
+                  "samples": 12
+                },
+                "wire_bytes": {
+                  "1090565": 12
+                },
+                "body_preserved": true
+              }
+            }
+          }
+        },
+        "metadata_before": {
+          "baseline": {
+            "health": {
+              "status": "ok",
+              "proxy": "agentrouter-codex-proxy",
+              "version": "1.5.0",
+              "dns_fallback_active": true,
+              "max_images_per_request": 35,
+              "request_gzip_enabled": true,
+              "request_gzip_min_bytes": 262144,
+              "request_gzip_backend": "isal",
+              "connection_pool_initialized": true,
+              "listen": "127.0.0.1:59938",
+              "uptime_seconds": 3.4,
+              "upstream": "http://127.0.0.1:59938/_synthetic_upstream",
+              "stats": {
+                "requests_total": 11,
+                "responses_requests": 11,
+                "resource_mismatches_caught": 0,
+                "stateless_fallbacks_applied": 0,
+                "successful_recoveries": 2,
+                "transport_retries": 0,
+                "pool_timeouts": 0,
+                "gzip_payloads": 6,
+                "gzip_input_bytes": 5604830,
+                "gzip_output_bytes": 1668726,
+                "gzip_fallbacks": 2,
+                "rate_limits_caught": 0,
+                "stream_precommit_retries": 0,
+                "rate_limit_wait_seconds_total": 0.0,
+                "images_pruned_total": 0,
+                "start_time": 1794617537.107035
+              }
+            },
+            "upstream_requests": 0,
+            "upstream_counts": {
+              "requests": 13,
+              "wire_bytes": 12859551,
+              "plain_successes": 7,
+              "gzip_successes": 4,
+              "gzip_rejections": 2
+            },
+            "shaped_upload_mbit_s": 1000.0,
+            "added_header_delay_ms": 0.0
+          },
+          "candidate": {
+            "health": {
+              "status": "ok",
+              "proxy": "agentrouter-codex-proxy",
+              "version": "1.6.0",
+              "dns_fallback_active": true,
+              "max_images_per_request": 35,
+              "request_gzip_enabled": true,
+              "request_gzip_min_bytes": 262144,
+              "request_gzip_backend": "isal",
+              "gzip_workers": 4,
+              "gzip_max_jobs": 16,
+              "gzip_jobs_inflight": 0,
+              "gzip_rejection_cache_entries": 1,
+              "connection_pool_initialized": true,
+              "upstream_max_inflight": 50,
+              "upstream_slots_in_use": 0,
+              "upstream_slot_waiters": 0,
+              "upstream_pool_cleanup_active": true,
+              "sse_buffer_max_bytes": 1048576,
+              "sse_prime_max_bytes": 262144,
+              "sse_prime_max_frames": 1024,
+              "rate_limit_scope": "credential",
+              "rate_limit_partitions": 2,
+              "listen": "127.0.0.1:59939",
+              "uptime_seconds": 3.4,
+              "upstream": "http://127.0.0.1:59939/_synthetic_upstream",
+              "stats": {
+                "requests_total": 11,
+                "responses_requests": 11,
+                "resource_mismatches_caught": 0,
+                "stateless_fallbacks_applied": 0,
+                "successful_recoveries": 1,
+                "transport_retries": 0,
+                "pool_timeouts": 0,
+                "upstream_capacity_waits": 0,
+                "upstream_unstarted_connections_reclaimed": 0,
+                "upstream_orphaned_connections_reclaimed": 0,
+                "client_disconnects_during_upload": 0,
+                "upstream_disconnect_cancellations": 0,
+                "gzip_payloads": 4,
+                "gzip_input_bytes": 3423700,
+                "gzip_output_bytes": 839414,
+                "gzip_fallbacks": 1,
+                "gzip_cached_rejection_skips": 1,
+                "gzip_busy_skips": 0,
+                "gzip_cost_skips": 1,
+                "gzip_evaluations": 8,
+                "gzip_preparation_seconds_total": 0.024552700022468343,
+                "sse_backpressure_events": 0,
+                "sse_prime_buffer_commits": 0,
+                "rate_limit_overflow_requests": 0,
+                "rate_limits_caught": 0,
+                "stream_precommit_retries": 0,
+                "rate_limit_wait_seconds_total": 0.0,
+                "images_pruned_total": 0,
+                "start_time": 1794617537.0805264
+              }
+            },
+            "upstream_requests": 0,
+            "upstream_counts": {
+              "requests": 12,
+              "wire_bytes": 13120804,
+              "plain_successes": 8,
+              "gzip_successes": 3,
+              "gzip_rejections": 1
+            },
+            "shaped_upload_mbit_s": 1000.0,
+            "added_header_delay_ms": 0.0
+          }
+        },
+        "metadata_after": {
+          "baseline": {
+            "health": {
+              "status": "ok",
+              "proxy": "agentrouter-codex-proxy",
+              "version": "1.5.0",
+              "dns_fallback_active": true,
+              "max_images_per_request": 35,
+              "request_gzip_enabled": true,
+              "request_gzip_min_bytes": 262144,
+              "request_gzip_backend": "isal",
+              "connection_pool_initialized": true,
+              "listen": "127.0.0.1:59938",
+              "uptime_seconds": 6.2,
+              "upstream": "http://127.0.0.1:59938/_synthetic_upstream",
+              "stats": {
+                "requests_total": 59,
+                "responses_requests": 59,
+                "resource_mismatches_caught": 0,
+                "stateless_fallbacks_applied": 0,
+                "successful_recoveries": 14,
+                "transport_retries": 0,
+                "pool_timeouts": 0,
+                "gzip_payloads": 42,
+                "gzip_input_bytes": 39233810,
+                "gzip_output_bytes": 11681082,
+                "gzip_fallbacks": 14,
+                "rate_limits_caught": 0,
+                "stream_precommit_retries": 0,
+                "rate_limit_wait_seconds_total": 0.0,
+                "images_pruned_total": 0,
+                "start_time": 1794617537.107035
+              }
+            },
+            "upstream_requests": 0,
+            "upstream_counts": {
+              "requests": 73,
+              "wire_bytes": 35959347,
+              "plain_successes": 31,
+              "gzip_successes": 28,
+              "gzip_rejections": 14
+            },
+            "shaped_upload_mbit_s": 1000.0,
+            "added_header_delay_ms": 0.0
+          },
+          "candidate": {
+            "health": {
+              "status": "ok",
+              "proxy": "agentrouter-codex-proxy",
+              "version": "1.6.0",
+              "dns_fallback_active": true,
+              "max_images_per_request": 35,
+              "request_gzip_enabled": true,
+              "request_gzip_min_bytes": 262144,
+              "request_gzip_backend": "isal",
+              "gzip_workers": 4,
+              "gzip_max_jobs": 16,
+              "gzip_jobs_inflight": 0,
+              "gzip_rejection_cache_entries": 1,
+              "connection_pool_initialized": true,
+              "upstream_max_inflight": 50,
+              "upstream_slots_in_use": 0,
+              "upstream_slot_waiters": 0,
+              "upstream_pool_cleanup_active": true,
+              "sse_buffer_max_bytes": 1048576,
+              "sse_prime_max_bytes": 262144,
+              "sse_prime_max_frames": 1024,
+              "rate_limit_scope": "credential",
+              "rate_limit_partitions": 2,
+              "listen": "127.0.0.1:59939",
+              "uptime_seconds": 6.2,
+              "upstream": "http://127.0.0.1:59939/_synthetic_upstream",
+              "stats": {
+                "requests_total": 59,
+                "responses_requests": 59,
+                "resource_mismatches_caught": 0,
+                "stateless_fallbacks_applied": 0,
+                "successful_recoveries": 1,
+                "transport_retries": 0,
+                "pool_timeouts": 0,
+                "upstream_capacity_waits": 0,
+                "upstream_unstarted_connections_reclaimed": 0,
+                "upstream_orphaned_connections_reclaimed": 0,
+                "client_disconnects_during_upload": 0,
+                "upstream_disconnect_cancellations": 0,
+                "gzip_payloads": 16,
+                "gzip_input_bytes": 10879120,
+                "gzip_output_bytes": 900026,
+                "gzip_fallbacks": 1,
+                "gzip_cached_rejection_skips": 13,
+                "gzip_busy_skips": 0,
+                "gzip_cost_skips": 13,
+                "gzip_evaluations": 32,
+                "gzip_preparation_seconds_total": 0.048874400003114715,
+                "sse_backpressure_events": 0,
+                "sse_prime_buffer_commits": 0,
+                "rate_limit_overflow_requests": 0,
+                "rate_limits_caught": 0,
+                "stream_precommit_retries": 0,
+                "rate_limit_wait_seconds_total": 0.0,
+                "images_pruned_total": 0,
+                "start_time": 1794617537.0805264
+              }
+            },
+            "upstream_requests": 0,
+            "upstream_counts": {
+              "requests": 60,
+              "wire_bytes": 39355636,
+              "plain_successes": 44,
+              "gzip_successes": 15,
+              "gzip_rejections": 1
+            },
+            "shaped_upload_mbit_s": 1000.0,
+            "added_header_delay_ms": 0.0
+          }
+        }
+      }
+    }
+  },
+  "regression_tests": {
+    "tests_run": 86,
+    "success": true,
+    "failures": 0,
+    "errors": 0,
+    "source_sha256": "8ef7158e275fdc296b69e3fdaa2d0d1c793873109db7ce0252aba8adee12744b"
+  },
+  "original_loopback": {
+    "checked_at": "2026-11-14T00:56:21.861931+00:00",
+    "scope": "Complete loopback HTTP/SSE, including synthetic decompression/hash validation; interleaved adjacent pairs",
+    "real_upstream_requests": 0,
+    "model_generation_ms": 0,
+    "source_sha256": {
+      "baseline": "bbbdf823092b6b1e4a5571ec7934e5185b7ae999bfdf5af8e97a05db7cf59e0f",
+      "candidate": "8ef7158e275fdc296b69e3fdaa2d0d1c793873109db7ce0252aba8adee12744b"
+    },
+    "method": "Both servers remain running; adjacent request pairs alternate AB/BA for each fixture; fixture order is shuffled in each cycle",
+    "epochs": 4,
+    "pairs_per_fixture_per_epoch": 90,
+    "variants": {
+      "baseline": {
+        "fixtures": {
+          "small": {
+            "first_output_ms": {
+              "median": 6.3718,
+              "p95": 9.5671,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 3.5453,
+              "p95": 5.4123,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.6301,
+              "p95": 4.0018,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.026,
+              "p95": 0.0381,
+              "samples": 360
+            },
+            "input_bytes": 55,
+            "wire_bytes": {
+              "60": 360
+            },
+            "body_preserved": false
+          },
+          "english_history": {
+            "first_output_ms": {
+              "median": 13.384,
+              "p95": 24.0706,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 9.9103,
+              "p95": 20.2194,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.8751,
+              "p95": 4.07,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.3586,
+              "p95": 0.4898,
+              "samples": 360
+            },
+            "input_bytes": 621285,
+            "wire_bytes": {
+              "622369": 360
+            },
+            "body_preserved": false
+          },
+          "russian_history": {
+            "first_output_ms": {
+              "median": 28.8777,
+              "p95": 41.2904,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 23.4299,
+              "p95": 34.1237,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 3.2247,
+              "p95": 4.6469,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 1.9251,
+              "p95": 2.507,
+              "samples": 360
+            },
+            "input_bytes": 1257285,
+            "wire_bytes": {
+              "3514369": 360
+            },
+            "body_preserved": false
+          },
+          "tool_history": {
+            "first_output_ms": {
+              "median": 16.9979,
+              "p95": 25.4512,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 12.923,
+              "p95": 19.8371,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 3.1315,
+              "p95": 4.1814,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.6183,
+              "p95": 0.8344,
+              "samples": 360
+            },
+            "input_bytes": 1090565,
+            "wire_bytes": {
+              "1091289": 360
+            },
+            "body_preserved": false
+          },
+          "tool_history_415": {
+            "first_output_ms": {
+              "median": 17.0267,
+              "p95": 29.1867,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 12.9589,
+              "p95": 25.0994,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 3.1406,
+              "p95": 4.2322,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.6192,
+              "p95": 0.8745,
+              "samples": 360
+            },
+            "input_bytes": 1090565,
+            "wire_bytes": {
+              "1091289": 360
+            },
+            "body_preserved": false
+          },
+          "thirty_images": {
+            "first_output_ms": {
+              "median": 31.8308,
+              "p95": 49.2704,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 26.4404,
+              "p95": 43.8728,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 3.3741,
+              "p95": 5.2055,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 1.6456,
+              "p95": 2.3098,
+              "samples": 360
+            },
+            "input_bytes": 3003195,
+            "wire_bytes": {
+              "3003469": 360
+            },
+            "body_preserved": false
+          }
+        },
+        "delayed_200ms_first_output_ms": {
+          "median": 205.3684,
+          "p95": 222.4413,
+          "samples": 6
+        }
+      },
+      "candidate": {
+        "fixtures": {
+          "small": {
+            "first_output_ms": {
+              "median": 6.2992,
+              "p95": 9.3063,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 3.5846,
+              "p95": 5.3655,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.5103,
+              "p95": 3.7363,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.0256,
+              "p95": 0.034,
+              "samples": 360
+            },
+            "input_bytes": 55,
+            "wire_bytes": {
+              "55": 360
+            },
+            "body_preserved": true
+          },
+          "english_history": {
+            "first_output_ms": {
+              "median": 10.1984,
+              "p95": 20.6349,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 6.1955,
+              "p95": 16.3407,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.6181,
+              "p95": 3.4972,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 1.0989,
+              "p95": 1.4145,
+              "samples": 360
+            },
+            "input_bytes": 621285,
+            "wire_bytes": {
+              "5051": 360
+            },
+            "body_preserved": true
+          },
+          "russian_history": {
+            "first_output_ms": {
+              "median": 13.1164,
+              "p95": 23.1415,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 7.8971,
+              "p95": 15.8788,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.6412,
+              "p95": 4.1229,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 2.1248,
+              "p95": 3.0604,
+              "samples": 360
+            },
+            "input_bytes": 1257285,
+            "wire_bytes": {
+              "11381": 360
+            },
+            "body_preserved": true
+          },
+          "tool_history": {
+            "first_output_ms": {
+              "median": 12.7474,
+              "p95": 22.3417,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 9.0301,
+              "p95": 18.1994,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.7295,
+              "p95": 3.8925,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.6231,
+              "p95": 0.9508,
+              "samples": 360
+            },
+            "input_bytes": 1090565,
+            "wire_bytes": {
+              "414656": 12,
+              "1090565": 348
+            },
+            "body_preserved": true
+          },
+          "tool_history_415": {
+            "first_output_ms": {
+              "median": 12.2866,
+              "p95": 23.5127,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 8.6255,
+              "p95": 18.3477,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.737,
+              "p95": 4.1633,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.6129,
+              "p95": 0.893,
+              "samples": 360
+            },
+            "input_bytes": 1090565,
+            "wire_bytes": {
+              "1090565": 360
+            },
+            "body_preserved": true
+          },
+          "thirty_images": {
+            "first_output_ms": {
+              "median": 24.0201,
+              "p95": 40.1981,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 18.7418,
+              "p95": 31.3392,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 3.2603,
+              "p95": 4.702,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 1.6442,
+              "p95": 2.1761,
+              "samples": 360
+            },
+            "input_bytes": 3003195,
+            "wire_bytes": {
+              "3003195": 360
+            },
+            "body_preserved": true
+          }
+        },
+        "delayed_200ms_first_output_ms": {
+          "median": 196.053,
+          "p95": 221.699,
+          "samples": 6
+        }
+      }
+    },
+    "paired": {
+      "small": {
+        "pairs": 360,
+        "median_saved_ms": 0.07540000000000013,
+        "median_saved_percent": 1.1382241246808866,
+        "candidate_faster_pairs": 221,
+        "median_saved_ms_bootstrap_95": {
+          "lower": 0.04049999999999976,
+          "upper": 0.10630000000000006,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": 0.6102597858002934,
+          "upper": 1.6521860768740626,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 6.3719,
+              "p95": 10.9866,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 6.2984,
+              "p95": 9.3063,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 6.3696,
+              "p95": 9.0027,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 6.3047,
+              "p95": 9.2009,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 6.327,
+              "p95": 7.888,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 6.2599,
+              "p95": 8.2574,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 6.334,
+              "p95": 13.8192,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 6.2903,
+              "p95": 13.0594,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 6.4266,
+              "p95": 16.2333,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 6.3133,
+              "p95": 15.0022,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 6.3696,
+              "p95": 8.6413,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 6.3433,
+              "p95": 8.6286,
+              "samples": 90
+            }
+          }
+        }
+      },
+      "english_history": {
+        "pairs": 360,
+        "median_saved_ms": 3.1944500000000007,
+        "median_saved_percent": 23.9124806988835,
+        "candidate_faster_pairs": 332,
+        "median_saved_ms_bootstrap_95": {
+          "lower": 3.1424499999999993,
+          "upper": 3.274400000000001,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": 23.363493640548803,
+          "upper": 24.32451670143014,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 13.4135,
+              "p95": 24.3222,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 10.2293,
+              "p95": 20.6349,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 13.3391,
+              "p95": 23.9111,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 10.1936,
+              "p95": 20.4806,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 13.3939,
+              "p95": 25.0202,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 10.1212,
+              "p95": 21.3676,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 13.3324,
+              "p95": 30.5051,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 10.1946,
+              "p95": 19.688,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 13.379,
+              "p95": 25.0508,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 10.3215,
+              "p95": 21.7073,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 13.4279,
+              "p95": 21.6725,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 10.2081,
+              "p95": 20.394,
+              "samples": 90
+            }
+          }
+        }
+      },
+      "russian_history": {
+        "pairs": 360,
+        "median_saved_ms": 15.7841,
+        "median_saved_percent": 54.712542016923294,
+        "candidate_faster_pairs": 359,
+        "median_saved_ms_bootstrap_95": {
+          "lower": 15.7239,
+          "upper": 15.876149999999999,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": 54.53114808643217,
+          "upper": 54.85765198739325,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 28.7803,
+              "p95": 41.1889,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 13.1343,
+              "p95": 22.6054,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 29.0669,
+              "p95": 41.2904,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 13.1081,
+              "p95": 23.1415,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 28.7701,
+              "p95": 39.2263,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 13.0597,
+              "p95": 24.7008,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 28.6689,
+              "p95": 56.6276,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 13.0792,
+              "p95": 25.2439,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 29.0624,
+              "p95": 43.512,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 13.1781,
+              "p95": 22.9971,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 29.1547,
+              "p95": 38.2247,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 13.1572,
+              "p95": 20.1124,
+              "samples": 90
+            }
+          }
+        }
+      },
+      "tool_history": {
+        "pairs": 360,
+        "median_saved_ms": 4.246249999999999,
+        "median_saved_percent": 24.963670097071258,
+        "candidate_faster_pairs": 331,
+        "median_saved_ms_bootstrap_95": {
+          "lower": 4.171399999999999,
+          "upper": 4.3111,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": 24.469102515471636,
+          "upper": 25.36526393950892,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 17.02,
+              "p95": 25.3124,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 12.6939,
+              "p95": 22.2637,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 16.993,
+              "p95": 26.0195,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 12.7995,
+              "p95": 23.9136,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 17.0412,
+              "p95": 25.4512,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 12.674,
+              "p95": 19.9246,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 16.7694,
+              "p95": 26.0195,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 12.7273,
+              "p95": 24.224,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 17.0677,
+              "p95": 25.3124,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 12.904,
+              "p95": 23.9136,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 17.0778,
+              "p95": 26.1535,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 12.6598,
+              "p95": 18.1369,
+              "samples": 90
+            }
+          }
+        }
+      },
+      "tool_history_415": {
+        "pairs": 360,
+        "median_saved_ms": 4.718449999999999,
+        "median_saved_percent": 27.79004031701532,
+        "candidate_faster_pairs": 340,
+        "median_saved_ms_bootstrap_95": {
+          "lower": 4.6511,
+          "upper": 4.809200000000001,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": 27.46081503777245,
+          "upper": 28.09026574218177,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 17.0016,
+              "p95": 27.2437,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 12.2998,
+              "p95": 23.1363,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 17.0494,
+              "p95": 32.9578,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 12.2704,
+              "p95": 23.5127,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 17.0047,
+              "p95": 27.7208,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 12.1574,
+              "p95": 23.5127,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 16.94,
+              "p95": 34.2995,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 12.1186,
+              "p95": 24.5794,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 17.1573,
+              "p95": 36.2987,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 12.3082,
+              "p95": 22.9208,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 17.0301,
+              "p95": 22.5543,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 12.7417,
+              "p95": 25.8661,
+              "samples": 90
+            }
+          }
+        }
+      },
+      "thirty_images": {
+        "pairs": 360,
+        "median_saved_ms": 7.88105,
+        "median_saved_percent": 24.811835612250462,
+        "candidate_faster_pairs": 341,
+        "median_saved_ms_bootstrap_95": {
+          "lower": 7.7577500000000015,
+          "upper": 7.9490500000000015,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": 24.415292412226215,
+          "upper": 25.020502266854404,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 31.7853,
+              "p95": 49.6049,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 23.9429,
+              "p95": 40.1981,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 31.874,
+              "p95": 46.385,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 24.0812,
+              "p95": 39.7248,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 31.5858,
+              "p95": 56.4522,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 23.8118,
+              "p95": 41.1983,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 31.7605,
+              "p95": 68.1977,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 23.867,
+              "p95": 49.336,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 31.8525,
+              "p95": 44.5803,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 24.2459,
+              "p95": 44.3026,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 31.9365,
+              "p95": 42.1645,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 24.1732,
+              "p95": 34.832,
+              "samples": 90
+            }
+          }
+        }
+      }
+    },
+    "receipt": "receipt.json",
+    "raw_pairs": "pairs.jsonl"
+  },
+  "original_loopback_gzip_off": {
+    "checked_at": "2026-11-14T01:03:58.249368+00:00",
+    "scope": "Complete loopback HTTP/SSE, including synthetic decompression/hash validation; interleaved adjacent pairs",
+    "real_upstream_requests": 0,
+    "model_generation_ms": 0,
+    "source_sha256": {
+      "baseline": "bbbdf823092b6b1e4a5571ec7934e5185b7ae999bfdf5af8e97a05db7cf59e0f",
+      "candidate": "8ef7158e275fdc296b69e3fdaa2d0d1c793873109db7ce0252aba8adee12744b"
+    },
+    "method": "Both servers remain running; adjacent request pairs alternate AB/BA for each fixture; fixture order is shuffled in each cycle",
+    "epochs": 4,
+    "pairs_per_fixture_per_epoch": 90,
+    "variants": {
+      "baseline": {
+        "fixtures": {
+          "small": {
+            "first_output_ms": {
+              "median": 6.396,
+              "p95": 9.2986,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 3.5701,
+              "p95": 5.0929,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.6322,
+              "p95": 3.8145,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.0254,
+              "p95": 0.0327,
+              "samples": 360
+            },
+            "input_bytes": 55,
+            "wire_bytes": {
+              "60": 360
+            },
+            "body_preserved": false
+          },
+          "english_history": {
+            "first_output_ms": {
+              "median": 13.5209,
+              "p95": 23.4778,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 9.9901,
+              "p95": 19.7994,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.9339,
+              "p95": 3.7968,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.3603,
+              "p95": 0.4747,
+              "samples": 360
+            },
+            "input_bytes": 621285,
+            "wire_bytes": {
+              "622369": 360
+            },
+            "body_preserved": false
+          },
+          "russian_history": {
+            "first_output_ms": {
+              "median": 29.173,
+              "p95": 47.324,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 23.6311,
+              "p95": 40.6947,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 3.2632,
+              "p95": 5.0693,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 1.9356,
+              "p95": 2.515,
+              "samples": 360
+            },
+            "input_bytes": 1257285,
+            "wire_bytes": {
+              "3514369": 360
+            },
+            "body_preserved": false
+          },
+          "tool_history": {
+            "first_output_ms": {
+              "median": 17.1658,
+              "p95": 29.4615,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 13.0586,
+              "p95": 24.3208,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 3.194,
+              "p95": 4.2475,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.6211,
+              "p95": 0.8473,
+              "samples": 360
+            },
+            "input_bytes": 1090565,
+            "wire_bytes": {
+              "1091289": 360
+            },
+            "body_preserved": false
+          },
+          "tool_history_415": {
+            "first_output_ms": {
+              "median": 17.1011,
+              "p95": 28.2707,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 13.0778,
+              "p95": 23.6246,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 3.2061,
+              "p95": 4.395,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.6211,
+              "p95": 0.8299,
+              "samples": 360
+            },
+            "input_bytes": 1090565,
+            "wire_bytes": {
+              "1091289": 360
+            },
+            "body_preserved": false
+          },
+          "thirty_images": {
+            "first_output_ms": {
+              "median": 32.0531,
+              "p95": 49.4845,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 26.6089,
+              "p95": 43.7143,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 3.4505,
+              "p95": 4.6628,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 1.6538,
+              "p95": 2.1887,
+              "samples": 360
+            },
+            "input_bytes": 3003195,
+            "wire_bytes": {
+              "3003469": 360
+            },
+            "body_preserved": false
+          }
+        },
+        "delayed_200ms_first_output_ms": {
+          "median": 205.3859,
+          "p95": 207.1993,
+          "samples": 6
+        }
+      },
+      "candidate": {
+        "fixtures": {
+          "small": {
+            "first_output_ms": {
+              "median": 6.3634,
+              "p95": 9.1898,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 3.6398,
+              "p95": 5.1181,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.5366,
+              "p95": 3.5399,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.0259,
+              "p95": 0.0321,
+              "samples": 360
+            },
+            "input_bytes": 55,
+            "wire_bytes": {
+              "55": 360
+            },
+            "body_preserved": true
+          },
+          "english_history": {
+            "first_output_ms": {
+              "median": 9.8907,
+              "p95": 21.1983,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 6.4929,
+              "p95": 16.5874,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.7825,
+              "p95": 3.6013,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.3592,
+              "p95": 0.4854,
+              "samples": 360
+            },
+            "input_bytes": 621285,
+            "wire_bytes": {
+              "621285": 360
+            },
+            "body_preserved": true
+          },
+          "russian_history": {
+            "first_output_ms": {
+              "median": 13.0462,
+              "p95": 23.6375,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 9.2462,
+              "p95": 19.4639,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.7445,
+              "p95": 3.8529,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.7117,
+              "p95": 0.9664,
+              "samples": 360
+            },
+            "input_bytes": 1257285,
+            "wire_bytes": {
+              "1257285": 360
+            },
+            "body_preserved": true
+          },
+          "tool_history": {
+            "first_output_ms": {
+              "median": 12.2627,
+              "p95": 21.4297,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 8.5615,
+              "p95": 14.3729,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.7285,
+              "p95": 4.321,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.614,
+              "p95": 0.8271,
+              "samples": 360
+            },
+            "input_bytes": 1090565,
+            "wire_bytes": {
+              "1090565": 360
+            },
+            "body_preserved": true
+          },
+          "tool_history_415": {
+            "first_output_ms": {
+              "median": 12.2811,
+              "p95": 23.1361,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 8.5687,
+              "p95": 18.935,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 2.7367,
+              "p95": 4.0723,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 0.6147,
+              "p95": 0.8386,
+              "samples": 360
+            },
+            "input_bytes": 1090565,
+            "wire_bytes": {
+              "1090565": 360
+            },
+            "body_preserved": true
+          },
+          "thirty_images": {
+            "first_output_ms": {
+              "median": 23.8152,
+              "p95": 40.0845,
+              "samples": 360
+            },
+            "body_arrival_ms": {
+              "median": 18.5597,
+              "p95": 34.338,
+              "samples": 360
+            },
+            "output_forward_ms": {
+              "median": 3.2618,
+              "p95": 4.7608,
+              "samples": 360
+            },
+            "validation_ms": {
+              "median": 1.6582,
+              "p95": 2.2832,
+              "samples": 360
+            },
+            "input_bytes": 3003195,
+            "wire_bytes": {
+              "3003195": 360
+            },
+            "body_preserved": true
+          }
+        },
+        "delayed_200ms_first_output_ms": {
+          "median": 197.2548,
+          "p95": 207.2694,
+          "samples": 6
+        }
+      }
+    },
+    "paired": {
+      "small": {
+        "pairs": 360,
+        "median_saved_ms": 0.03334999999999999,
+        "median_saved_percent": 0.520940534041292,
+        "candidate_faster_pairs": 201,
+        "median_saved_ms_bootstrap_95": {
+          "lower": 0.004300000000000637,
+          "upper": 0.06005000000000038,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": 0.06842285323297448,
+          "upper": 0.9375453066353123,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 6.403,
+              "p95": 9.2986,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 6.3864,
+              "p95": 8.9657,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 6.3779,
+              "p95": 9.0292,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 6.3505,
+              "p95": 9.2442,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 6.3172,
+              "p95": 9.4675,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 6.3388,
+              "p95": 9.3078,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 6.4916,
+              "p95": 9.8515,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 6.4889,
+              "p95": 11.2531,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 6.3826,
+              "p95": 9.3146,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 6.3982,
+              "p95": 9.251,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 6.3938,
+              "p95": 7.7067,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 6.3123,
+              "p95": 8.3827,
+              "samples": 90
+            }
+          }
+        }
+      },
+      "english_history": {
+        "pairs": 360,
+        "median_saved_ms": 3.639999999999999,
+        "median_saved_percent": 26.986273856204157,
+        "candidate_faster_pairs": 331,
+        "median_saved_ms_bootstrap_95": {
+          "lower": 3.5852000000000004,
+          "upper": 3.6991499999999995,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": 26.65985924804961,
+          "upper": 27.278463540639663,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 13.5317,
+              "p95": 22.3684,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 9.8907,
+              "p95": 21.9533,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 13.5061,
+              "p95": 24.8966,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 9.8928,
+              "p95": 19.8273,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 13.546,
+              "p95": 18.418,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 9.7902,
+              "p95": 19.9797,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 13.7752,
+              "p95": 30.5184,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 10.139,
+              "p95": 22.7173,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 13.4265,
+              "p95": 23.4778,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 9.901,
+              "p95": 19.0725,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 13.4207,
+              "p95": 24.8966,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 9.8678,
+              "p95": 21.4604,
+              "samples": 90
+            }
+          }
+        }
+      },
+      "russian_history": {
+        "pairs": 360,
+        "median_saved_ms": 16.186500000000002,
+        "median_saved_percent": 55.40417152147757,
+        "candidate_faster_pairs": 360,
+        "median_saved_ms_bootstrap_95": {
+          "lower": 16.0708,
+          "upper": 16.290399999999998,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": 55.25602609503455,
+          "upper": 55.54987530497536,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 29.2249,
+              "p95": 47.324,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 13.0386,
+              "p95": 22.417,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 29.1225,
+              "p95": 46.5816,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 13.0522,
+              "p95": 23.7479,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 28.7407,
+              "p95": 40.8467,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 12.9039,
+              "p95": 23.0182,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 29.6481,
+              "p95": 46.5816,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 13.2194,
+              "p95": 20.7596,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 29.5051,
+              "p95": 55.6748,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 13.1,
+              "p95": 23.7479,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 29.2799,
+              "p95": 48.6235,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 13.0046,
+              "p95": 24.9328,
+              "samples": 90
+            }
+          }
+        }
+      },
+      "tool_history": {
+        "pairs": 360,
+        "median_saved_ms": 4.960100000000001,
+        "median_saved_percent": 28.729598585342153,
+        "candidate_faster_pairs": 349,
+        "median_saved_ms_bootstrap_95": {
+          "lower": 4.883299999999998,
+          "upper": 5.060900000000002,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": 28.32184397540656,
+          "upper": 29.206160733303054,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 17.1262,
+              "p95": 28.9291,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 12.2282,
+              "p95": 21.4297,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 17.1957,
+              "p95": 29.4615,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 12.2748,
+              "p95": 20.7126,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 17.1797,
+              "p95": 33.5484,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 12.2391,
+              "p95": 22.0467,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 17.2874,
+              "p95": 27.9057,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 12.5515,
+              "p95": 19.416,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 17.0526,
+              "p95": 27.4605,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 12.2761,
+              "p95": 16.935,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 17.1255,
+              "p95": 27.5602,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 11.982,
+              "p95": 22.3146,
+              "samples": 90
+            }
+          }
+        }
+      },
+      "tool_history_415": {
+        "pairs": 360,
+        "median_saved_ms": 4.891049999999999,
+        "median_saved_percent": 28.28272168526366,
+        "candidate_faster_pairs": 336,
+        "median_saved_ms_bootstrap_95": {
+          "lower": 4.785499999999999,
+          "upper": 4.985899999999998,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": 27.942332281487914,
+          "upper": 28.704656315046336,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 17.1745,
+              "p95": 28.2707,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 12.2912,
+              "p95": 28.7111,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 17.0248,
+              "p95": 28.2321,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 12.2797,
+              "p95": 21.9001,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 17.0719,
+              "p95": 31.7533,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 12.2168,
+              "p95": 24.9621,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 17.3982,
+              "p95": 28.2321,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 12.4613,
+              "p95": 21.6737,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 17.0399,
+              "p95": 28.2707,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 12.3861,
+              "p95": 22.9909,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 17.0046,
+              "p95": 27.5182,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 12.0882,
+              "p95": 22.2856,
+              "samples": 90
+            }
+          }
+        }
+      },
+      "thirty_images": {
+        "pairs": 360,
+        "median_saved_ms": 8.272,
+        "median_saved_percent": 25.80304308367313,
+        "candidate_faster_pairs": 338,
+        "median_saved_ms_bootstrap_95": {
+          "lower": 8.165500000000002,
+          "upper": 8.41105,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "median_saved_percent_bootstrap_95": {
+          "lower": 25.465563536390157,
+          "upper": 26.12834357751993,
+          "resamples": 2000,
+          "method": "percentile bootstrap over adjacent pairs; samples may have serial correlation"
+        },
+        "order_strata": {
+          "baseline": {
+            "baseline": {
+              "median": 31.919,
+              "p95": 50.6183,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 23.7614,
+              "p95": 41.4831,
+              "samples": 180
+            }
+          },
+          "candidate": {
+            "baseline": {
+              "median": 32.1633,
+              "p95": 47.9259,
+              "samples": 180
+            },
+            "candidate": {
+              "median": 23.9121,
+              "p95": 36.7027,
+              "samples": 180
+            }
+          }
+        },
+        "epochs": {
+          "1": {
+            "baseline": {
+              "median": 31.6284,
+              "p95": 44.9287,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 23.6256,
+              "p95": 39.753,
+              "samples": 90
+            }
+          },
+          "2": {
+            "baseline": {
+              "median": 33.5037,
+              "p95": 66.3834,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 24.4073,
+              "p95": 58.1013,
+              "samples": 90
+            }
+          },
+          "3": {
+            "baseline": {
+              "median": 32.2199,
+              "p95": 50.6183,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 23.8581,
+              "p95": 36.4615,
+              "samples": 90
+            }
+          },
+          "4": {
+            "baseline": {
+              "median": 32.1098,
+              "p95": 47.9259,
+              "samples": 90
+            },
+            "candidate": {
+              "median": 23.7601,
+              "p95": 40.0845,
+              "samples": 90
+            }
+          }
+        }
+      }
+    },
+    "receipt": "receipt.json",
+    "raw_pairs": "pairs.jsonl"
+  }
+}

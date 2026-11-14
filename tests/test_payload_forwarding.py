@@ -34,6 +34,7 @@ class PayloadForwardingTests(unittest.IsolatedAsyncioTestCase):
         self.closed_before_send = []
         self.responses = []
         proxy.reset_rate_limit_state()
+        proxy.reset_compression_state()
 
         async def upstream(request):
             self.requests.append((request.content, int(request.headers["content-length"])))
@@ -59,8 +60,9 @@ class PayloadForwardingTests(unittest.IsolatedAsyncioTestCase):
         self.gzip_setting.stop()
         proxy.STATS.update(self.previous_stats)
         proxy.reset_rate_limit_state()
+        proxy.reset_compression_state()
 
-    async def forward(self, body, content_encoding=None):
+    async def forward(self, body, content_encoding=None, credential="synthetic"):
         first = True
 
         async def receive():
@@ -71,7 +73,7 @@ class PayloadForwardingTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.Event().wait()
 
         headers = [(b"content-type", b"application/json"),
-                   (b"authorization", b"Bearer synthetic"),
+                   (b"authorization", ("Bearer " + credential).encode()),
                    (b"content-length", str(len(body)).encode())]
         if content_encoding is not None:
             headers.append((b"content-encoding", content_encoding.encode()))
@@ -257,15 +259,30 @@ class PayloadForwardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(proxy.STATS["gzip_fallbacks"] - before["gzip_fallbacks"], 1)
         self.assertEqual(proxy.STATS["successful_recoveries"], before["successful_recoveries"])
 
-    async def test_gzip_415_applies_only_to_the_current_request(self):
+    async def test_gzip_415_cache_does_not_disable_other_credentials(self):
         body = self.large_body()
         self.responses = [self.unsupported_encoding(), self.completed(), self.completed()]
         with mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", True):
             first = await self.forward(body)
-            second = await self.forward(body)
+            second = await self.forward(body, credential="another-synthetic-key")
         self.assertEqual((first.status_code, second.status_code), (200, 200))
         self.assertEqual(self.encodings, ["gzip", None, "gzip"])
         self.assertEqual(gzip.decompress(self.requests[2][0]), body)
+
+    async def test_repeated_415_uses_plain_next_request_without_compressing_or_rejecting_again(self):
+        body = self.large_body()
+        self.responses = [self.unsupported_encoding(), self.completed(), self.completed()]
+        before = proxy.STATS["gzip_cached_rejection_skips"]
+        with mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", True), mock.patch.object(
+            proxy, "_gzip_if_worthwhile", wraps=proxy._gzip_if_worthwhile,
+        ) as compress:
+            self.assertEqual((await self.forward(body)).status_code, 200)
+            self.assertEqual((await self.forward(body)).status_code, 200)
+        self.assertEqual(self.encodings, ["gzip", None, None])
+        self.assertEqual(self.requests[1][0], body)
+        self.assertEqual(self.requests[2][0], body)
+        self.assertEqual(compress.call_count, 1)
+        self.assertEqual(proxy.STATS["gzip_cached_rejection_skips"], before + 1)
 
     async def test_gzip_415_preserves_plain_stateless_recovery_in_both_orders(self):
         payload = {
@@ -279,6 +296,7 @@ class PayloadForwardingTests(unittest.IsolatedAsyncioTestCase):
         mismatch = (400, {"error": {"message": "The requested item was created under a different OpenAI resource."}})
         for rejection_first in (True, False):
             with self.subTest(rejection_first=rejection_first), mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", True):
+                proxy.reset_compression_state()
                 offset = len(self.requests)
                 self.responses = (
                     [self.unsupported_encoding(), mismatch, (503, {"error": {"message": "Temporary upstream failure"}}), self.completed()]

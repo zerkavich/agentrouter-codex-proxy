@@ -1,6 +1,6 @@
 # Windows installation
 
-This guide covers Windows 10/11, Codex configuration, background startup, verification, restart and removal. Use Python 3.10 or newer; the proxy and its test suite have been checked with Python 3.12.
+This guide covers Windows 10/11, Codex configuration, background startup, verification, restart and removal. Use Python 3.10 or newer; the 86-test suite has been checked with Python 3.10 and 3.12. The installed portable Python 3.12 runtime was checked separately with its native packages.
 
 ## 1. Install Python and Git
 
@@ -35,7 +35,9 @@ In `.env`, keep `AGENTROUTER_UPSTREAM=https://agentrouter.org`, `PROXY_PORT=8788
 
 After verifying that your upstream accepts gzip request bodies, you can set `PROXY_REQUEST_GZIP=1` to reduce upload size for large text histories. The default threshold is 262144 bytes and poorly compressible payloads are skipped. Compression is optional and disabled by default; see [request forwarding and compression](../README.md#request-forwarding-and-optional-compression). For the machine-wide installation below, add these settings to the installed app's `.env` and restart its scheduled task.
 
-An HTTP 415 rejection of proxy-added gzip triggers one automatic retry with the same payload sent uncompressed. The `gzip_fallbacks` counter in `/_stats` records this recovery attempt. If it increases frequently, set `PROXY_REQUEST_GZIP=0` and restart to avoid repeated rejected compression attempts. Encodings supplied by Codex itself are preserved.
+An HTTP 415 rejection of proxy-added gzip triggers one automatic retry with the same payload sent uncompressed. The `gzip_fallbacks` counter in `/_stats` records this recovery attempt. Further requests with the same upstream, key, organization and project skip gzip for 60 seconds, avoiding repeated rejection until the next probe. Encodings supplied by Codex itself are preserved. See [runtime tuning](runtime-tuning.md) for the bounded worker pool, adaptive compression and stream buffers.
+
+For independent keys on a shared PC, keep `PROXY_RATE_LIMIT_SCOPE=credential`. If different keys deliberately share the same upstream quota, use `shared` so a 429 pauses all of them together. Restart the proxy after editing its `.env`.
 
 ## 3. Start and check the proxy
 
@@ -51,7 +53,7 @@ Leave that window open. In a second PowerShell window:
 Invoke-RestMethod 'http://127.0.0.1:8788/_health'
 ```
 
-Expect `status: ok`, `listen: 127.0.0.1:8788`, `request_gzip_backend: isal`, `connection_pool_initialized: true` and a `stats` object. The gzip backend can be available even when request compression is disabled. Keep the default loopback address for a proxy shared by accounts on the same PC.
+Expect `status: ok`, `version: 1.6.0`, `listen: 127.0.0.1:8788`, `request_gzip_backend: isal`, `connection_pool_initialized: true`, `upstream_pool_cleanup_active: true` and a `stats` object. The gzip backend can be available even when request compression is disabled. Keep the default loopback address for a proxy shared by accounts on the same PC.
 
 The `ExecutionPolicy Bypass` above applies to this PowerShell process. It does not change the machine's execution policy.
 
@@ -191,7 +193,8 @@ Get-NetTCPConnection -LocalPort 8788 -State Listen -ErrorAction SilentlyContinue
 
 - **Connection refused:** check that the selected task is running, that Python and dependencies are readable by its account, and that the configured port is 8788.
 - **Port occupied:** use one proxy instance. Inspect the owning process before changing its state.
-- **502 with `PoolTimeout`:** check that the cancellation fix is installed. It releases upstream responses when a Codex request is cancelled. The `pool_timeouts` counter helps distinguish pool exhaustion from a gateway rejection or another network error.
+- **502 with `PoolTimeout`:** check that version 1.6.0's cancellation fixes are installed. They release abandoned sends before response headers arrive, partially read JSON and cancelled SSE responses. Admission waiters stay outside HTTPcore, and abandoned CONNECTING/ACTIVE pool entries are reclaimed under its normal lock. `pool_timeouts`, `upstream_capacity_waits`, `upstream_disconnect_cancellations` and `upstream_orphaned_connections_reclaimed` are cumulative diagnostic counters. When abandoned requests finish cleanup, `upstream_slots_in_use` and `upstream_slot_waiters` in `/_health` should return to zero if no other requests are active. A generic 502 may still be an upstream/network failure; these counters help identify the reproduced pool-exhaustion case. Use the restart procedure above when needed; a Windows reboot is unnecessary.
+- **`upstream_pool_cleanup_active: false`:** verify that all pinned `requirements.txt` packages were installed. The cleanup wrapper depends on the supported HTTPcore pool layout; rerun the regression suite before adopting dependency upgrades.
 - **401/403:** check the affected Codex user's AgentRouter credentials. A successful local health check does not authenticate upstream requests.
 - **A second Windows user fails:** configure that account's Codex provider and credentials; use machine-wide startup if the first account may log out.
 

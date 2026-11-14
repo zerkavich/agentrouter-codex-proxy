@@ -25,9 +25,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 import copy
 import gzip
+from functools import partial
+import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -40,13 +44,16 @@ import random
 import re
 import socket
 import sys
+import threading
 import time
+import weakref
 from typing import Any, AsyncIterator, Dict, List, Mapping, Optional, Tuple
 
 import anyio
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from starlette.requests import ClientDisconnect
 
 try:
     from isal import igzip as _native_gzip
@@ -298,6 +305,22 @@ CONNECT_TIMEOUT_S = float(os.environ.get("PROXY_CONNECT_TIMEOUT_S", "20.0"))
 READ_TIMEOUT_S = float(os.environ.get("PROXY_READ_TIMEOUT_S", "600.0"))
 REQUEST_GZIP_ENABLED = os.environ.get("PROXY_REQUEST_GZIP", "0").lower() in ("1", "true", "yes")
 REQUEST_GZIP_MIN_BYTES = max(65536, int(os.environ.get("PROXY_REQUEST_GZIP_MIN_BYTES", "262144")))
+REQUEST_GZIP_WORKERS = max(1, min(16, int(os.environ.get("PROXY_GZIP_WORKERS", "4"))))
+REQUEST_GZIP_MAX_JOBS = max(REQUEST_GZIP_WORKERS, int(os.environ.get("PROXY_GZIP_MAX_JOBS", "16")))
+REQUEST_GZIP_REJECT_TTL_S = max(0.0, float(os.environ.get("PROXY_GZIP_REJECT_TTL_S", "60")))
+REQUEST_GZIP_CACHE_SIZE = 256
+REQUEST_GZIP_UPLOAD_MBIT_S = max(0.0, float(os.environ.get("PROXY_GZIP_UPLOAD_MBIT_S", "0")))
+REQUEST_GZIP_COST_MARGIN = max(1.0, float(os.environ.get("PROXY_GZIP_COST_MARGIN", "2")))
+GZIP_PROFILE_TTL_S = 120.0
+SSE_CHUNK_MAX_BYTES = 65536
+SSE_BUFFER_MAX_BYTES = max(SSE_CHUNK_MAX_BYTES, int(os.environ.get("PROXY_SSE_BUFFER_BYTES", "1048576")))
+SSE_PRIME_MAX_BYTES = max(SSE_CHUNK_MAX_BYTES, int(os.environ.get("PROXY_SSE_PRIME_BYTES", "262144")))
+SSE_PRIME_MAX_FRAMES = max(1, int(os.environ.get("PROXY_SSE_PRIME_FRAMES", "1024")))
+RATE_LIMIT_SCOPE = os.environ.get("PROXY_RATE_LIMIT_SCOPE", "credential").lower()
+if RATE_LIMIT_SCOPE not in ("credential", "shared"):
+    raise ValueError("PROXY_RATE_LIMIT_SCOPE must be credential or shared")
+RATE_LIMIT_MAX_PARTITIONS = max(1, int(os.environ.get("PROXY_RATE_LIMIT_PARTITIONS", "256")))
+_PROFILE_HASH_KEY = os.urandom(32)
 
 CLIENT_TIMEOUT = httpx.Timeout(
     timeout=READ_TIMEOUT_S,
@@ -456,10 +479,23 @@ STATS = {
     "successful_recoveries": 0,
     "transport_retries": 0,
     "pool_timeouts": 0,
+    "upstream_capacity_waits": 0,
+    "upstream_unstarted_connections_reclaimed": 0,
+    "upstream_orphaned_connections_reclaimed": 0,
+    "client_disconnects_during_upload": 0,
+    "upstream_disconnect_cancellations": 0,
     "gzip_payloads": 0,
     "gzip_input_bytes": 0,
     "gzip_output_bytes": 0,
     "gzip_fallbacks": 0,
+    "gzip_cached_rejection_skips": 0,
+    "gzip_busy_skips": 0,
+    "gzip_cost_skips": 0,
+    "gzip_evaluations": 0,
+    "gzip_preparation_seconds_total": 0.0,
+    "sse_backpressure_events": 0,
+    "sse_prime_buffer_commits": 0,
+    "rate_limit_overflow_requests": 0,
     "rate_limits_caught": 0,
     "stream_precommit_retries": 0,
     "rate_limit_wait_seconds_total": 0.0,
@@ -472,28 +508,73 @@ STATS = {
 # When concurrent subagents share AgentRouter's upstream TPM pool, a 429 or SSE
 # rate_limit_exceeded pauses and staggers launches across all active callers.
 # ----------------------------------------------------------------------------
-_RATE_LIMIT_STATE: Dict[str, Any] = {
-    "cooldown_until": 0.0,
-    "streak": 0,
-    "last_limit_at": 0.0,
-    "next_launch_after": 0.0,
-}
-_LAUNCH_LOCKS: Dict[int, asyncio.Lock] = {}
+def _new_rate_limit_state() -> Dict[str, Any]:
+    return {"cooldown_until": 0.0, "streak": 0, "last_limit_at": 0.0,
+            "next_launch_after": 0.0, "active": 0, "launch_lock": None, "launch_loop": None}
 
-def _get_launch_lock() -> asyncio.Lock:
-    loop_id = id(asyncio.get_running_loop())
-    lock = _LAUNCH_LOCKS.get(loop_id)
-    if lock is None:
-        lock = asyncio.Lock()
-        _LAUNCH_LOCKS[loop_id] = lock
-    return lock
+
+_RATE_LIMIT_STATE: Dict[str, Any] = _new_rate_limit_state()
+_OVERFLOW_RATE_LIMIT_STATE: Dict[str, Any] = _new_rate_limit_state()
+_RATE_LIMIT_STATES: OrderedDict[bytes, Dict[str, Any]] = OrderedDict()
+
+
+def _credential_fingerprint(headers: Mapping[str, str]) -> Optional[bytes]:
+    authorization = headers.get("authorization", "").strip()
+    api_key = headers.get("api-key", "").strip()
+    if not authorization and not api_key:
+        return None
+    # Retain no credentials in caches; fingerprints are keyed per process.
+    return hashlib.blake2b((authorization + "\0" + api_key).encode("utf-8"),
+                          key=_PROFILE_HASH_KEY, digest_size=16).digest()
+
+
+def _acquire_rate_limit_state(headers: Mapping[str, str]) -> Dict[str, Any]:
+    key = _credential_fingerprint(headers) if RATE_LIMIT_SCOPE == "credential" else None
+    if key is None:
+        state = _RATE_LIMIT_STATE
+    else:
+        state = _RATE_LIMIT_STATES.get(key)
+        if state is None:
+            if len(_RATE_LIMIT_STATES) >= RATE_LIMIT_MAX_PARTITIONS:
+                now = time.monotonic()
+                for cached_key, cached in _RATE_LIMIT_STATES.items():
+                    if (cached["active"] == 0 and cached["cooldown_until"] <= now
+                            and cached["last_limit_at"] + 10.0 <= now
+                            and cached["next_launch_after"] <= now):
+                        del _RATE_LIMIT_STATES[cached_key]
+                        break
+            if len(_RATE_LIMIT_STATES) < RATE_LIMIT_MAX_PARTITIONS:
+                state = _new_rate_limit_state()
+                _RATE_LIMIT_STATES[key] = state
+            else:
+                # Do not evict gates with active requests or pending cooldowns.
+                state = _OVERFLOW_RATE_LIMIT_STATE
+                STATS["rate_limit_overflow_requests"] += 1
+        elif key in _RATE_LIMIT_STATES:
+            _RATE_LIMIT_STATES.move_to_end(key)
+    state["active"] += 1
+    return state
+
+
+def _release_rate_limit_state(state: Dict[str, Any]) -> None:
+    state["active"] -= 1
+
+
+def _get_launch_lock(state: Optional[Dict[str, Any]] = None) -> asyncio.Lock:
+    state = _RATE_LIMIT_STATE if state is None else state
+    loop = asyncio.get_running_loop()
+    if state["launch_loop"] is not loop:
+        state["launch_loop"] = loop
+        state["launch_lock"] = asyncio.Lock()
+    return state["launch_lock"]
 
 def reset_rate_limit_state() -> None:
     """Resets in-memory rate-limit cooldown state (primarily for tests)."""
-    _RATE_LIMIT_STATE["cooldown_until"] = 0.0
-    _RATE_LIMIT_STATE["streak"] = 0
-    _RATE_LIMIT_STATE["last_limit_at"] = 0.0
-    _RATE_LIMIT_STATE["next_launch_after"] = 0.0
+    _RATE_LIMIT_STATE.clear()
+    _RATE_LIMIT_STATE.update(_new_rate_limit_state())
+    _OVERFLOW_RATE_LIMIT_STATE.clear()
+    _OVERFLOW_RATE_LIMIT_STATE.update(_new_rate_limit_state())
+    _RATE_LIMIT_STATES.clear()
 
 def _parse_reset_duration(raw: str) -> Optional[float]:
     m = RESET_DURATION_RE.search(raw.strip())
@@ -554,17 +635,19 @@ def _extract_retry_delay_s(
     delay = min(exp + random.uniform(0.2, 0.8), RATE_LIMIT_MAX_DELAY_S)
     return delay, None
 
-def _record_rate_limit_cooldown(delay_s: float) -> int:
+def _record_rate_limit_cooldown(delay_s: float, state: Optional[Dict[str, Any]] = None) -> int:
+    state = _RATE_LIMIT_STATE if state is None else state
     now = time.monotonic()
-    new_streak = min(int(_RATE_LIMIT_STATE["streak"]) + 1, 4)
-    _RATE_LIMIT_STATE["streak"] = new_streak
-    _RATE_LIMIT_STATE["last_limit_at"] = now
-    _RATE_LIMIT_STATE["cooldown_until"] = max(float(_RATE_LIMIT_STATE["cooldown_until"]), now + delay_s)
+    new_streak = min(int(state["streak"]) + 1, 4)
+    state["streak"] = new_streak
+    state["last_limit_at"] = now
+    state["cooldown_until"] = max(float(state["cooldown_until"]), now + delay_s)
     return new_streak
 
-def _clear_rate_limit_cooldown() -> None:
-    _RATE_LIMIT_STATE["streak"] = 0
-    _RATE_LIMIT_STATE["cooldown_until"] = 0.0
+def _clear_rate_limit_cooldown(state: Optional[Dict[str, Any]] = None) -> None:
+    state = _RATE_LIMIT_STATE if state is None else state
+    state["streak"] = 0
+    state["cooldown_until"] = 0.0
 
 async def _client_disconnected(request: Request) -> bool:
     try:
@@ -588,36 +671,37 @@ async def _sleep_unless_disconnected(delay_s: float, request: Request) -> bool:
             return True
         await asyncio.sleep(min(rem, 0.25))
 
-async def _wait_for_rate_limit_gate(request: Request) -> bool:
+async def _wait_for_rate_limit_gate(request: Request, state: Optional[Dict[str, Any]] = None) -> bool:
     """Honors active shared rate-limit cooldown and staggers post-limit bursts."""
+    state = _RATE_LIMIT_STATE if state is None else state
     while True:
         if await _client_disconnected(request):
             return False
         now = time.monotonic()
-        cooldown_until = float(_RATE_LIMIT_STATE["cooldown_until"])
+        cooldown_until = float(state["cooldown_until"])
         if now < cooldown_until:
             await asyncio.sleep(min(cooldown_until - now, 0.25))
             continue
 
         recently_limited = (
-            _RATE_LIMIT_STATE["streak"] > 0
-            or (now - float(_RATE_LIMIT_STATE["last_limit_at"])) < 10.0
+            state["streak"] > 0
+            or (now - float(state["last_limit_at"])) < 10.0
         )
         if not recently_limited or RECOVERY_STAGGER_S <= 0:
             return True
 
-        lock = _get_launch_lock()
+        lock = _get_launch_lock(state)
         async with lock:
             now = time.monotonic()
-            if now < float(_RATE_LIMIT_STATE["cooldown_until"]):
+            if now < float(state["cooldown_until"]):
                 continue
-            slot = float(_RATE_LIMIT_STATE["next_launch_after"])
+            slot = float(state["next_launch_after"])
             if now < slot:
                 wait_for_slot = slot - now
-                _RATE_LIMIT_STATE["next_launch_after"] = slot + RECOVERY_STAGGER_S
+                state["next_launch_after"] = slot + RECOVERY_STAGGER_S
             else:
                 wait_for_slot = 0.0
-                _RATE_LIMIT_STATE["next_launch_after"] = now + RECOVERY_STAGGER_S
+                state["next_launch_after"] = now + RECOVERY_STAGGER_S
 
         if wait_for_slot > 0:
             if not await _sleep_unless_disconnected(wait_for_slot, request):
@@ -628,6 +712,123 @@ async def _wait_for_rate_limit_gate(request: Request) -> bool:
 # Shared Connection Pool
 # ----------------------------------------------------------------------------
 _SHARED_CLIENT: Optional[httpx.AsyncClient] = None
+_CLIENT_CAPACITY = weakref.WeakKeyDictionary()
+
+
+def _assign_without_abandoned_connections(pool, original_assign):
+    # Interrupted HTTPcore cleanup can leave an ACTIVE or never-started
+    # connection with no owning pool request; neither is idle or closed.
+    # Run under HTTPcore's own pool lock, before it assigns the remaining queue.
+    busy = [connection for connection in pool._connections
+            if not connection.is_idle() and not connection.is_closed()]
+    abandoned = []
+    if busy:
+        assigned = {request.connection for request in pool._requests}
+        abandoned = [connection for connection in busy if connection not in assigned]
+        for connection in abandoned:
+            pool._connections.remove(connection)
+        STATS["upstream_unstarted_connections_reclaimed"] += sum(
+            getattr(connection, "_connection", False) is None for connection in abandoned)
+        STATS["upstream_orphaned_connections_reclaimed"] += len(abandoned)
+    # The caller closes these using HTTPcore's normal cancellation shield.
+    # Established keep-alive connections and owned TCP/TLS connects are retained.
+    return abandoned + original_assign()
+
+
+def _install_upstream_pool_cleanup(pool) -> None:
+    if pool is None or getattr(pool, "_proxy_unstarted_cleanup", False):
+        return
+    if not all(hasattr(pool, name) for name in ("_connections", "_requests", "_assign_requests_to_connections")):
+        return
+    original_assign = pool._assign_requests_to_connections
+    pool._assign_requests_to_connections = partial(_assign_without_abandoned_connections, pool, original_assign)
+    pool._proxy_unstarted_cleanup = True
+
+
+class _UpstreamCapacity:
+    def __init__(self, limit: int):
+        self.limit = limit
+        self.loop = asyncio.get_running_loop()
+        self.semaphore = asyncio.Semaphore(limit)
+        self.in_use = 0
+        self.waiters = 0
+
+
+class _UpstreamLease:
+    def __init__(self, capacity: _UpstreamCapacity):
+        self.capacity = capacity
+        self.released = False
+
+    def release(self) -> None:
+        if not self.released:
+            self.released = True
+            self.capacity.in_use -= 1
+            self.capacity.semaphore.release()
+
+
+class _CapacityStream(httpx.AsyncByteStream):
+    def __init__(self, stream: httpx.AsyncByteStream, lease: _UpstreamLease):
+        self.stream = stream
+        self.lease = lease
+
+    def __aiter__(self) -> AsyncIterator[bytes]:
+        # Delegate the iterator directly; token chunks gain no additional yield.
+        return self.stream.__aiter__()
+
+    async def aclose(self) -> None:
+        try:
+            await self.stream.aclose()
+        finally:
+            self.lease.release()
+
+
+def _get_upstream_capacity(client: httpx.AsyncClient) -> _UpstreamCapacity:
+    capacity = _CLIENT_CAPACITY.get(client)
+    if capacity is None or capacity.loop is not asyncio.get_running_loop():
+        pool = getattr(getattr(client, "_transport", None), "_pool", None)
+        _install_upstream_pool_cleanup(pool)
+        limit = max(1, int(getattr(pool, "_max_connections", 50) or 50))
+        capacity = _UpstreamCapacity(limit)
+        _CLIENT_CAPACITY[client] = capacity
+    return capacity
+
+
+async def _send_with_capacity(client: httpx.AsyncClient, request: httpx.Request, *, stream: bool) -> httpx.Response:
+    # Keep cancellable waiters outside HTTPcore. Cancelling a queued HTTPcore
+    # request can otherwise leave an unused CONNECTING entry occupying its pool.
+    capacity = _get_upstream_capacity(client)
+    waiting = capacity.semaphore.locked()
+    if waiting:
+        capacity.waiters += 1
+        STATS["upstream_capacity_waits"] += 1
+    try:
+        timeouts = getattr(request, "extensions", {}).get("timeout", {})
+        pool_timeout = timeouts.get("pool", CLIENT_TIMEOUT.pool)
+        if waiting and pool_timeout is not None:
+            try:
+                with anyio.fail_after(pool_timeout):
+                    await capacity.semaphore.acquire()
+            except TimeoutError:
+                raise httpx.PoolTimeout("Timed out waiting for an available upstream connection", request=request) from None
+        else:
+            await capacity.semaphore.acquire()
+    finally:
+        if waiting:
+            capacity.waiters -= 1
+    capacity.in_use += 1
+    lease = _UpstreamLease(capacity)
+    try:
+        response = await client.send(request, stream=stream)
+        if response.is_closed:
+            lease.release()
+        else:
+            # Headers alone do not free capacity: SSE and incomplete JSON bodies
+            # retain the lease until their underlying response really closes.
+            response.stream = _CapacityStream(response.stream, lease)
+        return response
+    except BaseException:
+        lease.release()
+        raise
 
 def get_shared_client() -> httpx.AsyncClient:
     """Returns a shared persistent AsyncClient with connection pooling."""
@@ -635,6 +836,7 @@ def get_shared_client() -> httpx.AsyncClient:
     if _SHARED_CLIENT is None or _SHARED_CLIENT.is_closed:
         limits = httpx.Limits(max_keepalive_connections=20, max_connections=50, keepalive_expiry=600.0)
         _SHARED_CLIENT = httpx.AsyncClient(timeout=CLIENT_TIMEOUT, limits=limits, follow_redirects=False)
+        _install_upstream_pool_cleanup(getattr(_SHARED_CLIENT._transport, "_pool", None))
     return _SHARED_CLIENT
 
 # ----------------------------------------------------------------------------
@@ -766,7 +968,7 @@ async def _send_with_transport_retry(
                 params=params,
                 content=content,
             )
-            return await client.send(req, stream=stream)
+            return await _send_with_capacity(client, req, stream=stream)
         except (httpx.ConnectError, httpx.ConnectTimeout, httpx.RemoteProtocolError, httpx.ReadTimeout) as exc:
             last_exc = exc
             STATS["transport_retries"] += 1
@@ -809,17 +1011,24 @@ async def _app_lifespan(_: FastAPI):
         # Authentication remains per request; this does not contact upstream.
         with anyio.CancelScope():
             get_shared_client()
+            if REQUEST_GZIP_ENABLED:
+                _get_gzip_pool()
         yield
     finally:
-        global _SHARED_CLIENT
+        global _SHARED_CLIENT, _GZIP_POOL
+        if _GZIP_POOL is not None:
+            pool = _GZIP_POOL
+            _GZIP_POOL = None
+            pool.shutdown()
         if _SHARED_CLIENT and not _SHARED_CLIENT.is_closed:
-            await _SHARED_CLIENT.aclose()
+            with anyio.CancelScope(shield=True):
+                await _SHARED_CLIENT.aclose()
 
 
 app = FastAPI(
     title="agentrouter-codex-proxy",
     description="Local compatibility proxy fixing OpenAI Responses cross-resource errors for Codex",
-    version="1.5.0",
+    version="1.6.0",
     lifespan=_app_lifespan,
 )
 
@@ -849,16 +1058,31 @@ def _filter_headers(headers: Dict[str, str]) -> Dict[str, str]:
 @app.get("/_health")
 async def health():
     uptime_s = round(time.time() - STATS["start_time"], 1)
+    capacity = _CLIENT_CAPACITY.get(_SHARED_CLIENT) if _SHARED_CLIENT is not None else None
     return {
         "status": "ok",
         "proxy": "agentrouter-codex-proxy",
-        "version": "1.5.0",
+        "version": "1.6.0",
         "dns_fallback_active": True,
         "max_images_per_request": MAX_IMAGES_PER_REQUEST,
         "request_gzip_enabled": REQUEST_GZIP_ENABLED,
         "request_gzip_min_bytes": REQUEST_GZIP_MIN_BYTES,
         "request_gzip_backend": "isal" if _native_gzip is not None else "stdlib",
+        "gzip_workers": REQUEST_GZIP_WORKERS,
+        "gzip_max_jobs": REQUEST_GZIP_MAX_JOBS,
+        "gzip_jobs_inflight": _GZIP_POOL.inflight if _GZIP_POOL is not None else 0,
+        "gzip_rejection_cache_entries": len(_GZIP_REJECTIONS),
         "connection_pool_initialized": _SHARED_CLIENT is not None and not _SHARED_CLIENT.is_closed,
+        "upstream_max_inflight": capacity.limit if capacity is not None else 50,
+        "upstream_slots_in_use": capacity.in_use if capacity is not None else 0,
+        "upstream_slot_waiters": capacity.waiters if capacity is not None else 0,
+        "upstream_pool_cleanup_active": bool(getattr(getattr(getattr(_SHARED_CLIENT, "_transport", None), "_pool", None),
+                                                     "_proxy_unstarted_cleanup", False)),
+        "sse_buffer_max_bytes": SSE_BUFFER_MAX_BYTES,
+        "sse_prime_max_bytes": SSE_PRIME_MAX_BYTES,
+        "sse_prime_max_frames": SSE_PRIME_MAX_FRAMES,
+        "rate_limit_scope": RATE_LIMIT_SCOPE,
+        "rate_limit_partitions": len(_RATE_LIMIT_STATES),
         "listen": f"{LISTEN_HOST}:{PORT}",
         "uptime_seconds": uptime_s,
         "upstream": UPSTREAM,
@@ -885,6 +1109,19 @@ class SSEPrimeResult:
     error_payload: Optional[Dict[str, Any]] = None
 
 
+def _new_sse_queue() -> asyncio.Queue:
+    # Each queued piece is at most 64 KiB; the queue itself stays within budget.
+    return asyncio.Queue(maxsize=max(1, SSE_BUFFER_MAX_BYTES // SSE_CHUNK_MAX_BYTES))
+
+
+async def _put_sse_chunk(queue: asyncio.Queue, chunk: Optional[bytes]) -> None:
+    try:
+        queue.put_nowait(chunk)
+    except asyncio.QueueFull:
+        STATS["sse_backpressure_events"] += 1
+        await queue.put(chunk)
+
+
 async def _sse_producer(
     upstream_response: httpx.Response,
     queue: asyncio.Queue,
@@ -892,11 +1129,16 @@ async def _sse_producer(
 ) -> None:
     try:
         async for chunk in upstream_response.aiter_bytes():
-            await queue.put(chunk)
-        await queue.put(None)
+            if len(chunk) <= SSE_CHUNK_MAX_BYTES:
+                # Preserve small chunks immediately; never coalesce token events.
+                await _put_sse_chunk(queue, chunk)
+            else:
+                for start in range(0, len(chunk), SSE_CHUNK_MAX_BYTES):
+                    await _put_sse_chunk(queue, chunk[start:start + SSE_CHUNK_MAX_BYTES])
+        await _put_sse_chunk(queue, None)
     except Exception as exc:
         producer_exc.append(exc)
-        await queue.put(None)
+        await _put_sse_chunk(queue, None)
 
 
 async def _next_sse_chunk(queue: asyncio.Queue, timeout_s: float) -> Optional[bytes]:
@@ -938,6 +1180,37 @@ class UpstreamStreamingResponse(StreamingResponse):
             await super().__call__(scope, receive, send)
         finally:
             await _close_sse_producer(self.upstream_response, self.producer_task)
+
+
+_CLIENT_DISCONNECTED = object()
+
+
+async def _abort_upstream_work(task: asyncio.Task) -> None:
+    # A send can finish while the disconnect check is awaiting receive(). Close
+    # any returned but unclaimed Response as well as cancelling pending work.
+    with anyio.CancelScope(shield=True):
+        if not task.done():
+            task.cancel()
+        outcomes = await asyncio.gather(task, return_exceptions=True)
+        if isinstance(outcomes[0], httpx.Response):
+            await _close_sse_producer(outcomes[0], None)
+
+
+async def _await_upstream_work(request: Request, operation):
+    """Release pool capacity if a client leaves before headers/JSON are ready."""
+    task = asyncio.create_task(operation)
+    try:
+        while True:
+            done, _ = await asyncio.wait((task,), timeout=0.35)
+            if done:
+                return task.result()
+            if await _client_disconnected(request):
+                await _abort_upstream_work(task)
+                STATS["upstream_disconnect_cancellations"] += 1
+                return _CLIENT_DISCONNECTED
+    except BaseException:
+        await _abort_upstream_work(task)
+        raise
 
 
 def _parse_sse_frame(raw_frame: bytes) -> Tuple[str, Optional[Dict[str, Any]], str]:
@@ -1042,12 +1315,13 @@ async def _prime_responses_sse(
     Catches early HTTP-200 rate_limit_exceeded / response.failed / empty streams
     so the proxy can retry silently without tripping Codex reconnect banners.
     """
-    queue: asyncio.Queue[Optional[bytes]] = asyncio.Queue()
+    queue: asyncio.Queue[Optional[bytes]] = _new_sse_queue()
     producer_exc: List[Exception] = []
     producer_task = asyncio.create_task(_sse_producer(upstream_response, queue, producer_exc))
 
     buf = bytearray()
     primed_chunks: List[bytes] = []
+    primed_bytes = 0
     saw_setup = False
     overall_deadline = time.monotonic() + first_frame_timeout_s
     grace_deadline: Optional[float] = None
@@ -1063,21 +1337,31 @@ async def _prime_responses_sse(
             producer_exc=producer_exc,
         )
 
+    def buffer_limit_result(remainder: bytes) -> SSEPrimeResult:
+        STATS["sse_prime_buffer_commits"] += 1
+        return commit_result(remainder)
+
     async def abort_result(status: str, code: str = "", msg: str = "", payload: Optional[Dict[str, Any]] = None) -> SSEPrimeResult:
         await _close_sse_producer(upstream_response, producer_task)
         return SSEPrimeResult(status=status, error_code=code, error_message=msg, error_payload=payload)
 
     async def handle_frame(raw_frame: bytes, trailing_offset: int) -> Optional[SSEPrimeResult]:
-        nonlocal saw_setup, grace_deadline
+        nonlocal saw_setup, grace_deadline, primed_bytes
         kind, err_code, err_msg, err_obj = _classify_sse_frame(raw_frame)
         if kind == "ignore":
             primed_chunks.append(raw_frame)
+            primed_bytes += len(raw_frame)
+            if primed_bytes >= SSE_PRIME_MAX_BYTES or len(primed_chunks) >= SSE_PRIME_MAX_FRAMES:
+                return buffer_limit_result(bytes(buf[trailing_offset:]))
             return None
         if kind == "setup":
             primed_chunks.append(raw_frame)
+            primed_bytes += len(raw_frame)
             if not saw_setup:
                 saw_setup = True
                 grace_deadline = time.monotonic() + created_grace_s
+            if primed_bytes >= SSE_PRIME_MAX_BYTES or len(primed_chunks) >= SSE_PRIME_MAX_FRAMES:
+                return buffer_limit_result(bytes(buf[trailing_offset:]))
             return None
         if kind == "error":
             primed_chunks.append(raw_frame)
@@ -1131,6 +1415,10 @@ async def _prime_responses_sse(
                     return res
             if pos > 0:
                 del buf[:pos]
+            if primed_bytes + len(buf) >= SSE_PRIME_MAX_BYTES:
+                # Forward partial frames verbatim when inspection reaches its cap.
+                # The client can finish parsing them as subsequent pieces arrive.
+                return buffer_limit_result(bytes(buf))
     except asyncio.CancelledError:
         await _close_sse_producer(upstream_response, producer_task)
         raise
@@ -1153,7 +1441,7 @@ async def _stream_generator(
     Replays any pre-commit primed frames verbatim before continuing live chunks.
     """
     if queue is None or producer_task is None:
-        queue = asyncio.Queue()
+        queue = _new_sse_queue()
         producer_exc = []
         producer_task = asyncio.create_task(_sse_producer(upstream_response, queue, producer_exc))
 
@@ -1246,17 +1534,170 @@ def _compress_request_gzip(content: bytes) -> bytes:
     return gzip.compress(content, compresslevel=1, mtime=0)
 
 
-def _gzip_if_worthwhile(content: bytes) -> bytes:
+class _GzipPool:
+    """Bound compressed work without competing with asyncio's default executor."""
+
+    def __init__(self, workers: int, max_jobs: int):
+        self.executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="proxy-gzip")
+        self.slots = threading.BoundedSemaphore(max_jobs)
+        self.lock = threading.Lock()
+        self._inflight = 0
+
+    @property
+    def inflight(self) -> int:
+        with self.lock:
+            return self._inflight
+
+    def _completed(self, _future) -> None:
+        with self.lock:
+            self._inflight -= 1
+        self.slots.release()
+
+    def submit(self, function, content: bytes):
+        if not self.slots.acquire(blocking=False):
+            return None
+        with self.lock:
+            self._inflight += 1
+        try:
+            future = self.executor.submit(function, content)
+        except BaseException:
+            self._completed(None)
+            raise
+        # Runs even if an awaiting request is cancelled. A running compressor
+        # retains its slot until it really finishes; a cancelled queued job frees it.
+        future.add_done_callback(self._completed)
+        return future
+
+    def shutdown(self) -> None:
+        self.executor.shutdown(wait=False, cancel_futures=True)
+
+
+_GZIP_POOL: Optional[_GzipPool] = None
+_GZIP_REJECTIONS: OrderedDict[Tuple[str, Optional[bytes]], float] = OrderedDict()
+_GZIP_COST_PROFILES: OrderedDict[Tuple[int, int, bool], Tuple[float, float]] = OrderedDict()
+_GZIP_PROFILE_LOCK = threading.Lock()
+_UPLOAD_OBSERVATIONS: OrderedDict[Tuple[str, Optional[bytes]], List[Tuple[float, float]]] = OrderedDict()
+
+
+def _get_gzip_pool() -> _GzipPool:
+    global _GZIP_POOL
+    if _GZIP_POOL is None:
+        _GZIP_POOL = _GzipPool(REQUEST_GZIP_WORKERS, REQUEST_GZIP_MAX_JOBS)
+    return _GZIP_POOL
+
+
+def reset_compression_state() -> None:
+    """Reset capability hints, primarily to isolate independent tests."""
+    _GZIP_REJECTIONS.clear()
+    _UPLOAD_OBSERVATIONS.clear()
+    with _GZIP_PROFILE_LOCK:
+        _GZIP_COST_PROFILES.clear()
+
+
+def _gzip_capability_key(headers: Mapping[str, str]) -> Tuple[str, Optional[bytes]]:
+    fingerprint = _credential_fingerprint(headers)
+    organization = headers.get("openai-organization", "")
+    project = headers.get("openai-project", "")
+    if organization or project:
+        fingerprint = hashlib.blake2b((fingerprint or b"") + b"\0" + organization.encode()
+                                      + b"\0" + project.encode(), key=_PROFILE_HASH_KEY, digest_size=16).digest()
+    return UPSTREAM, fingerprint
+
+
+def _gzip_rejected_recently(headers: Mapping[str, str]) -> bool:
+    if REQUEST_GZIP_REJECT_TTL_S <= 0:
+        return False
+    key = _gzip_capability_key(headers)
+    deadline = _GZIP_REJECTIONS.get(key)
+    if deadline is None:
+        return False
+    if deadline <= time.monotonic():
+        del _GZIP_REJECTIONS[key]
+        return False
+    _GZIP_REJECTIONS.move_to_end(key)
+    return True
+
+
+def _record_gzip_rejection(headers: Mapping[str, str]) -> None:
+    if REQUEST_GZIP_REJECT_TTL_S <= 0:
+        return
+    key = _gzip_capability_key(headers)
+    _GZIP_REJECTIONS[key] = time.monotonic() + REQUEST_GZIP_REJECT_TTL_S
+    _GZIP_REJECTIONS.move_to_end(key)
+    while len(_GZIP_REJECTIONS) > REQUEST_GZIP_CACHE_SIZE:
+        _GZIP_REJECTIONS.popitem(last=False)
+
+
+def _record_upload_observation(content: bytes, headers: Mapping[str, str], elapsed: float,
+                               response: httpx.Response) -> None:
+    # Real, large, unencoded requests only. Time includes RTT and upstream work,
+    # so bytes/time is deliberately a conservative lower bound, not a speed test.
+    if (not REQUEST_GZIP_ENABLED or REQUEST_GZIP_UPLOAD_MBIT_S > 0
+            or len(content) < 524288 or headers.get("content-encoding") or elapsed <= 0
+            or response.status_code != 200 or "network_stream" not in response.extensions):
+        return
+    key = _gzip_capability_key(headers)
+    now = time.monotonic()
+    samples = _UPLOAD_OBSERVATIONS.get(key, [])
+    samples = [(at, rate) for at, rate in samples if now - at < GZIP_PROFILE_TTL_S]
+    samples.append((now, min(100000.0, len(content) * 8 / elapsed / 1e6)))
+    _UPLOAD_OBSERVATIONS[key] = samples[-6:]
+    _UPLOAD_OBSERVATIONS.move_to_end(key)
+    while len(_UPLOAD_OBSERVATIONS) > REQUEST_GZIP_CACHE_SIZE:
+        _UPLOAD_OBSERVATIONS.popitem(last=False)
+
+
+def _upload_estimate(headers: Mapping[str, str]) -> float:
+    if REQUEST_GZIP_UPLOAD_MBIT_S > 0:
+        return REQUEST_GZIP_UPLOAD_MBIT_S
+    now = time.monotonic()
+    key = _gzip_capability_key(headers)
+    samples = _UPLOAD_OBSERVATIONS.get(key)
+    if not samples:
+        return 0.0
+    recent = [rate for at, rate in samples if now - at < GZIP_PROFILE_TTL_S]
+    if not recent:
+        del _UPLOAD_OBSERVATIONS[key]
+    # Require multiple observations and keep the slowest recent lower bound.
+    return min(recent) if len(recent) >= 2 else 0.0
+
+
+def _gzip_if_worthwhile(content: bytes, *, upload_mbit_s: float = 0.0) -> bytes:
     # Sample three regions before spending CPU on a whole payload. Already
     # compressed images and encrypted state usually fail this compressibility check.
     sample_size = min(8192, len(content) // 3)
     if not sample_size:
         return content
+    started = time.perf_counter()
+    sample_output_bytes = 0
     for start in (0, (len(content) - sample_size) // 2, len(content) - sample_size):
         sample = content[start:start + sample_size]
-        if len(_compress_request_gzip(sample)) > len(sample) * 0.6:
+        sample_bytes = len(_compress_request_gzip(sample))
+        if sample_bytes > len(sample) * 0.6:
+            return content
+        sample_output_bytes += sample_bytes
+    sample_ratio = sample_output_bytes / (3 * sample_size)
+    profile_key = (int(sample_ratio * 20), len(content).bit_length(), _native_gzip is None)
+    with _GZIP_PROFILE_LOCK:
+        profile = _GZIP_COST_PROFILES.get(profile_key)
+    if profile is not None and time.monotonic() - profile[1] < GZIP_PROFILE_TTL_S and upload_mbit_s > 0:
+        expected_cost = profile[0] * len(content) * REQUEST_GZIP_COST_MARGIN
+        expected_upload_saving = len(content) * (1 - sample_ratio) * 8 / (upload_mbit_s * 1e6)
+        if expected_cost >= expected_upload_saving:
+            with _GZIP_PROFILE_LOCK:
+                STATS["gzip_cost_skips"] += 1
             return content
     compressed = _compress_request_gzip(content)
+    elapsed_per_byte = (time.perf_counter() - started) / len(content)
+    with _GZIP_PROFILE_LOCK:
+        previous = _GZIP_COST_PROFILES.get(profile_key)
+        if previous is not None and time.monotonic() - previous[1] < GZIP_PROFILE_TTL_S:
+            # React immediately to slower work, decay conservatively when faster.
+            elapsed_per_byte = max(elapsed_per_byte, previous[0] * 0.75 + elapsed_per_byte * 0.25)
+        _GZIP_COST_PROFILES[profile_key] = (elapsed_per_byte, time.monotonic())
+        _GZIP_COST_PROFILES.move_to_end(profile_key)
+        while len(_GZIP_COST_PROFILES) > 128:
+            _GZIP_COST_PROFILES.popitem(last=False)
     return compressed if len(compressed) <= len(content) * 0.8 else content
 
 
@@ -1266,8 +1707,20 @@ async def _prepare_upstream_content(content: bytes, source_headers: Dict[str, st
         or any(name.lower() == "content-encoding" for name in source_headers)
     ):
         return content, source_headers
+    if _gzip_rejected_recently(source_headers):
+        STATS["gzip_cached_rejection_skips"] += 1
+        return content, source_headers
     try:
-        compressed = await asyncio.to_thread(_gzip_if_worthwhile, content)
+        started = time.perf_counter()
+        upload_mbit_s = _upload_estimate(source_headers)
+        compress = partial(_gzip_if_worthwhile, upload_mbit_s=upload_mbit_s) if upload_mbit_s else _gzip_if_worthwhile
+        job = _get_gzip_pool().submit(compress, content)
+        if job is None:
+            STATS["gzip_busy_skips"] += 1
+            return content, source_headers
+        compressed = await asyncio.wrap_future(job)
+        STATS["gzip_evaluations"] += 1
+        STATS["gzip_preparation_seconds_total"] += time.perf_counter() - started
     except Exception as exc:
         logger.warning("[Request Compression] %s", describe_upstream_error(exc))
         return content, source_headers
@@ -1292,10 +1745,22 @@ async def handle_responses(request: Request):
     STATS["requests_total"] += 1
     STATS["responses_requests"] += 1
 
-    body_bytes = await request.body()
-    body_json = _decode_responses_payload(body_bytes) if _payload_may_contain_images(body_bytes) else None
-
+    try:
+        body_bytes = await request.body()
+    except ClientDisconnect:
+        STATS["client_disconnects_during_upload"] += 1
+        return Response(status_code=499)
     source_headers = _filter_headers(dict(request.headers))
+    rate_state = _acquire_rate_limit_state(source_headers)
+    try:
+        return await _handle_responses(request, body_bytes, source_headers, rate_state)
+    finally:
+        _release_rate_limit_state(rate_state)
+
+
+async def _handle_responses(request: Request, body_bytes: bytes, source_headers: Dict[str, str],
+                            rate_state: Dict[str, Any]):
+    body_json = _decode_responses_payload(body_bytes) if _payload_may_contain_images(body_bytes) else None
     headers = source_headers
     upstream_url = f"{UPSTREAM}/v1/responses"
 
@@ -1350,7 +1815,7 @@ async def handle_responses(request: Request):
         nonlocal transient_retries
         if is_rate_limit:
             STATS["rate_limits_caught"] += 1
-            streak = min(int(_RATE_LIMIT_STATE["streak"]) + 1, 4)
+            streak = min(int(rate_state["streak"]) + 1, 4)
             delay_s, hint_s = _extract_retry_delay_s(resp_hdrs, err_msg, streak)
             suggested_ra = hint_s if hint_s is not None else max(1, min(int(round(delay_s)), int(RATE_LIMIT_MAX_DELAY_S)))
         else:
@@ -1363,7 +1828,7 @@ async def handle_responses(request: Request):
 
         wait_s = min(delay_s, remaining_budget)
         if is_rate_limit:
-            _record_rate_limit_cooldown(wait_s)
+            _record_rate_limit_cooldown(wait_s, rate_state)
         transient_retries += 1
         logger.warning(
             "[%s] Retrying (%d/%d) after %.1fs: %s",
@@ -1373,7 +1838,7 @@ async def handle_responses(request: Request):
         return ok, suggested_ra
 
     while True:
-        if not await _wait_for_rate_limit_gate(request):
+        if not await _wait_for_rate_limit_gate(request, rate_state):
             return Response(status_code=499)
 
         if wire_content is None:
@@ -1385,7 +1850,8 @@ async def handle_responses(request: Request):
         stream_handed_off = False
         try:
             client = get_shared_client()
-            resp = await _send_with_transport_retry(
+            upstream_started = time.perf_counter()
+            pending_response = await _await_upstream_work(request, _send_with_transport_retry(
                 client,
                 method="POST",
                 url=upstream_url,
@@ -1393,7 +1859,11 @@ async def handle_responses(request: Request):
                 content=wire_content,
                 stream=True,
                 max_retries=5,
-            )
+            ))
+            if pending_response is _CLIENT_DISCONNECTED:
+                return Response(status_code=499)
+            resp = pending_response
+            _record_upload_observation(wire_content, headers, time.perf_counter() - upstream_started, resp)
 
             resp_headers = _clean_response_headers(resp.headers)
             content_type = resp.headers.get("content-type", "")
@@ -1401,7 +1871,7 @@ async def handle_responses(request: Request):
             if resp.status_code == 200 and "text/event-stream" in content_type.lower():
                 prime = await _prime_responses_sse(resp, request)
                 if prime.status == "commit":
-                    _clear_rate_limit_cooldown()
+                    _clear_rate_limit_cooldown(rate_state)
                     if fallback_active or gzip_fallback_active or transient_retries > 0 or mismatch_attempts > 0:
                         STATS["successful_recoveries"] += 1
                         logger.info(
@@ -1463,7 +1933,9 @@ async def handle_responses(request: Request):
                 )
 
             if resp.status_code == 200:
-                body = await resp.aread()
+                body = resp.content if resp.is_stream_consumed else await _await_upstream_work(request, resp.aread())
+                if body is _CLIENT_DISCONNECTED:
+                    return Response(status_code=499)
                 await resp.aclose()
                 parsed_body: Optional[Dict[str, Any]] = None
                 try:
@@ -1490,14 +1962,16 @@ async def handle_responses(request: Request):
                         if is_rl:
                             return _rate_limit_error_response(err_obj, msg, code, suggested_ra, resp_headers)
 
-                _clear_rate_limit_cooldown()
+                _clear_rate_limit_cooldown(rate_state)
                 if fallback_active or gzip_fallback_active or transient_retries > 0 or mismatch_attempts > 0:
                     STATS["successful_recoveries"] += 1
                     logger.info("[Success] Request recovered!")
                 return Response(content=body, status_code=200, headers=resp_headers)
 
             # Non-200 HTTP status
-            err_body = await resp.aread()
+            err_body = resp.content if resp.is_stream_consumed else await _await_upstream_work(request, resp.aread())
+            if err_body is _CLIENT_DISCONNECTED:
+                return Response(status_code=499)
             await resp.aclose()
             err_text = err_body.decode("utf-8", errors="replace")
 
@@ -1509,6 +1983,7 @@ async def handle_responses(request: Request):
                 # Retry only proxy-added encoding, using the current payload.
                 # Keep subsequent retries and stateless recovery plain as well.
                 gzip_fallback_active = True
+                _record_gzip_rejection(source_headers)
                 wire_content = req_content
                 headers = source_headers
                 STATS["gzip_fallbacks"] += 1
@@ -1564,7 +2039,11 @@ async def passthrough_handler(request: Request, path: str):
     STATS["requests_total"] += 1
 
     headers = _filter_headers(dict(request.headers))
-    body = await request.body()
+    try:
+        body = await request.body()
+    except ClientDisconnect:
+        STATS["client_disconnects_during_upload"] += 1
+        return Response(status_code=499)
 
     clean_path = path.lstrip("/")
     if not clean_path.startswith("v1/"):
@@ -1574,7 +2053,7 @@ async def passthrough_handler(request: Request, path: str):
 
     try:
         client = get_shared_client()
-        resp = await _send_with_transport_retry(
+        pending_response = await _await_upstream_work(request, _send_with_transport_retry(
             client,
             method=request.method,
             url=target_url,
@@ -1583,7 +2062,10 @@ async def passthrough_handler(request: Request, path: str):
             content=body,
             stream=False,
             max_retries=5,
-        )
+        ))
+        if pending_response is _CLIENT_DISCONNECTED:
+            return Response(status_code=499)
+        resp = pending_response
         resp_headers = {
             k: v for k, v in resp.headers.items()
             if k.lower() not in STRIP_RESPONSE_HEADERS
