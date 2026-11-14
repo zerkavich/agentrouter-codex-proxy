@@ -291,6 +291,7 @@ Get-NetTCPConnection -LocalPort 8788 -State Listen -ErrorAction SilentlyContinue
 - **`upstream_pool_cleanup_active: false`:** verify that all pinned `requirements.txt` packages were installed. The cleanup wrapper depends on the supported HTTPcore pool layout; rerun the regression suite before adopting dependency upgrades.
 - **401/403:** check the affected Codex user's AgentRouter credentials. A successful local health check does not authenticate upstream requests.
 - **A second Windows user fails:** configure that account's Codex provider and credentials; use machine-wide startup if the first account may log out.
+- **`restart_port_occupied`:** the supervisor waits for its previous worker and listener to close. If that takes longer, the independent panel stays available on 8789 and startup resumes once the port is free. **Recover proxy** retries stopping only the supervisor's own worker; an unrelated listener is left untouched. Shutdown/release failures are retained in `logs/proxy.log`.
 
 To return Codex to a direct AgentRouter connection, restore only that provider's `base_url` to its previous value, normally `https://agentrouter.org/v1`, then reload Codex. Keep the rest of the current configuration.
 

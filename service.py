@@ -268,6 +268,50 @@ def _stop_child(proc: Optional[subprocess.Popen[Any]]) -> None:
         pass
 
 
+def _wait_for_restart_port(proc, port, host, stop_event, panel, logger, action=None, *, timeout_s=5.0):
+    """Wait for our worker and listener to close without losing recovery UI.
+
+    Windows can release a terminated worker's socket after its process handle
+    is signalled. A persistent conflict must not shut down the independent
+    supervisor or cause us to terminate an unrelated listener.
+    """
+    def ready():
+        return (proc is None or proc.poll() is not None) and not _is_port_busy(port, host)
+
+    deadline = time.monotonic() + timeout_s
+    while not stop_event.is_set():
+        if ready():
+            return True
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        stop_event.wait(min(0.1, remaining))
+    if stop_event.is_set():
+        return False
+
+    if action is not None:
+        _write_control_action(panel.root, {**action, 'state': 'failed',
+                                          'error_code': 'restart_port_occupied'})
+    logger.write('fail ', f'worker shutdown or port {port} release is pending; '
+                 + ('independent panel remains available' if panel.server is not None
+                    else 'no independent panel is available'))
+    if panel.server is None:
+        return False
+
+    # The old Popen handle is our sole termination target. A browser recovery
+    # retries that handle; it never kills a process discovered by port number.
+    while not stop_event.is_set():
+        if ready():
+            logger.write('ok   ', f'port {port} released; resuming worker startup')
+            return True
+        if panel.recovery_requested.is_set():
+            panel.recovery_requested.clear()
+            _stop_child(proc)
+        stop_event.wait(0.25)
+    _stop_child(proc)
+    return False
+
+
 def _respawn_self(args: argparse.Namespace) -> None:
     exe = _resolve_service_python()
     cmd = [
@@ -1029,6 +1073,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             finally:
                 with child_lock:
                     _stop_child(proc)
+                    if proc.poll() is None:
+                        logger.write('fail ', f'owned worker PID {proc.pid} did not exit after terminate/kill')
                     active_child["proc"] = None
                 independent_panel.history.interrupt_worker(proc.pid)
                 output_thread.join(timeout=1)
@@ -1054,9 +1100,10 @@ def main(argv: Optional[list[str]] = None) -> int:
 
             if controlled_restart.is_set():
                 controlled_restart.clear()
-                if _is_port_busy(args.port, args.host):
-                    _write_control_action(ROOT, {**pending_control['action'], 'state': 'failed',
-                                                 'error_code': 'restart_port_occupied'})
+                if not _wait_for_restart_port(proc, args.port, args.host, stop_event,
+                                              independent_panel, logger, pending_control['action']):
+                    if stop_event.is_set():
+                        break
                     return 2
                 command = pending_control['action']
                 if command.get('action') == 'update' and not command.get('error_code'):
@@ -1105,6 +1152,11 @@ def main(argv: Optional[list[str]] = None) -> int:
                             pending_control['action'] = None
                 backoff = 5
                 rapid_failures = 0
+                # Health gets its full startup budget even if listener release
+                # took longer; action duration still includes that wait.
+                if pending_control['action'] is not None:
+                    pending_control['duration_offset'] += time.monotonic() - pending_control['started']
+                    pending_control['started'] = time.monotonic()
                 continue
 
             code = proc.returncode if proc.returncode is not None else "unknown"
@@ -1113,8 +1165,10 @@ def main(argv: Optional[list[str]] = None) -> int:
             independent_panel.history.event('worker_exit', worker_pid=proc.pid,
                                              status=proc.returncode or 0, duration_s=ran_for)
 
-            if _is_port_busy(args.port, args.host):
-                logger.write("fail ", f"port {args.port} occupied while restarting -- stopping")
+            if not _wait_for_restart_port(proc, args.port, args.host, stop_event,
+                                          independent_panel, logger):
+                if stop_event.is_set():
+                    break
                 return 2
 
             if ran_for >= 60.0:
