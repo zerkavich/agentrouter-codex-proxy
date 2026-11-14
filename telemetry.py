@@ -204,10 +204,13 @@ class HistoryStore:
             self.thread = threading.Thread(target=self._run, name='proxy-history', daemon=True)
             self.thread.start()
 
-    def close(self):
+    def close(self, timeout=10):
         self.stopping.set()
         if self.thread is not None:
-            self.thread.join(timeout=3)
+            # Startup and the last bounded batch may outlast three seconds on
+            # a slow filesystem. This wait is confined to graceful shutdown.
+            self.thread.join(timeout=timeout)
+        return self.thread is None or not self.thread.is_alive()
 
     def submit(self, kind, value, completion=None):
         if not self.enabled or self.stopping.is_set():
@@ -302,15 +305,21 @@ class HistoryStore:
             db = sqlite3.connect(self.path, timeout=0.25)
         else:
             db = sqlite3.connect(self.path.as_uri() + '?mode=ro', uri=True, timeout=0.25)
-        db.execute('PRAGMA cache_size=-512' if write else 'PRAGMA cache_size=-256')
-        db.execute('PRAGMA mmap_size=0')
-        if write:
-            db.execute('PRAGMA auto_vacuum=INCREMENTAL')
-            db.execute('PRAGMA journal_mode=WAL')
-            db.execute('PRAGMA synchronous=NORMAL')
-            db.execute('PRAGMA max_page_count=8192')
-            db.execute('PRAGMA journal_size_limit=1048576')
-            db.execute('PRAGMA wal_autocheckpoint=256')
+        try:
+            db.execute('PRAGMA cache_size=-512' if write else 'PRAGMA cache_size=-256')
+            db.execute('PRAGMA mmap_size=0')
+            if write:
+                db.execute('PRAGMA auto_vacuum=INCREMENTAL')
+                db.execute('PRAGMA journal_mode=WAL')
+                db.execute('PRAGMA synchronous=NORMAL')
+                db.execute('PRAGMA max_page_count=8192')
+                db.execute('PRAGMA journal_size_limit=1048576')
+                db.execute('PRAGMA wal_autocheckpoint=256')
+        except BaseException:
+            # A failed PRAGMA must not leave a Windows file handle or SQLite
+            # cache alive until garbage collection; the caller has no db yet.
+            db.close()
+            raise
         return db
 
     def _schema(self, db):

@@ -395,5 +395,170 @@
     },
     "server_runtime_matches_release": true,
     "panel_assets_exercised": false
+  },
+  "evidence_snapshot_note": "Original runtime hashes and measurements below describe the feature snapshot. Final publication hashes and lifecycle regression checks are in publication_followup.",
+  "publication_followup": {
+    "status": "passed",
+    "checked_at": "2026-11-14T15:51:32.557470+00:00",
+    "changes": [
+      "Close SQLite connections after failed initialization",
+      "Bound graceful history shutdown to ten seconds and report writer completion"
+    ],
+    "previous_commit": "83b6e152abf56347b853326c1535da39b755afa7",
+    "initial_ci": {
+      "url": "https://github.com/zerkavich/agentrouter-codex-proxy/actions/runs/43611255962",
+      "failure": "Windows Python 3.10: temporary history database remained open during test teardown",
+      "passed_environments": [
+        "Ubuntu Python 3.10",
+        "Ubuntu Python 3.12",
+        "Windows Python 3.12"
+      ]
+    },
+    "new_regressions": [
+      "Connection remains closed after a failed reader/writer PRAGMA",
+      "Timed-out shutdown is explicit, retryable, and releases the Windows file"
+    ],
+    "runtime_sha256_lf": {
+      "proxy.py": "a12dd374017212a3fa7873fbe61ff355543be8f94b558264a229facd3365fbea",
+      "telemetry.py": "916aee4d9d0005c0d6282a8707e80267f117826824334ccbf378637912a1623e",
+      "control.py": "1ed5bab66d20e74f0328559417a3945c7a8d60bd8103d7ceb3c992db9e44925f",
+      "panel_updates.py": "21d448dfbebfdc68b1d30fd6e3b249b818c8351e845860d51b7088de7ad0f992",
+      "service.py": "95510c61ed47e839fdccae4a7255fb413db7ff890fac2fb314bf501cb8f2e4ef",
+      "updater.py": "d23aade721da00ccb4cd6db3347aca96e9435331698f6f60f12627182c5b4ff8",
+      "doctor.py": "ab503763e7aa3bf2af743b91c3c3d15ec1818a5619525abd455bd418286d714b",
+      "diagnose.ps1": "c7ca18afd4d9bc156073f077dfad6ef0c0d4ee830e77da5f0bf315eaf3b1945b",
+      "requirements.txt": "5ea3e96cdc526171cba6944628735e890af313c33d93e8dd94a93192a248373e",
+      "panel/index.html": "c93e9a7230a15c9158747e3d78306fb9814472091890533e37062f10bc23c196",
+      "panel/panel.js": "c02133036e7aa8654f52c59c9b54cf03c064c4d691be75be3fdbd116e59188d7",
+      "panel/panel.css": "6de64d3a62f401297b1120d50e40c8904d76331ad0a133fffc928d2d7ad5d610",
+      "panel/mark.svg": "276b9070bd4a784503ba0d945bd4e5ff9f045bfd3bda6af8277ec4ed47fa9f23",
+      "update_guard.py": "7c00f87e2c50b8d9d95af096ced6d731d332f417e4578911bd83c12260602151",
+      "machine_service.py": "9b9ef0e17f06e0d899e8c04394dc1e06f55a4c887b799927be88793331596038"
+    },
+    "tested_windows_runtime_sha256": {
+      "proxy.py": "aad87079803c15e6294e07d073fa7ccb7db26c787d4446461607ce598a0633c9",
+      "telemetry.py": "8d8f47edfa67e29517709ff1ed583ed2d6b08699c3c5f541267cbd0739969c77",
+      "control.py": "731ef58f2e3d2b6f68333c41dd574ac36cea867817b33888c8f4ba8860fce140",
+      "panel_updates.py": "1fdaba97ccf30ca0a041c1671a20c0653993d3e304f69ccfb3c795065188e240",
+      "service.py": "6d9104ca1ded0bb608c563fb5e9443175f1993cc5a167cb1cb239c7e53a7471b",
+      "updater.py": "a9d12fdd9db3316c02256057913a96b6e007d79d9e1725e80264bd159849ca81",
+      "doctor.py": "3911beb50b861de4c0040f26a60ead1b1f16ae935b6d09bb2112eeceadf29401",
+      "diagnose.ps1": "4f921f3df028d314a35a298ae6d89ce177de33428c0f21209b29d7de069b70c0",
+      "requirements.txt": "7bbb92da4cbaed2e5e1e4fc6e99a91b5847239ae4011f6f79e21764eeee754e9",
+      "panel/index.html": "c93e9a7230a15c9158747e3d78306fb9814472091890533e37062f10bc23c196",
+      "panel/panel.js": "c02133036e7aa8654f52c59c9b54cf03c064c4d691be75be3fdbd116e59188d7",
+      "panel/panel.css": "6de64d3a62f401297b1120d50e40c8904d76331ad0a133fffc928d2d7ad5d610",
+      "panel/mark.svg": "276b9070bd4a784503ba0d945bd4e5ff9f045bfd3bda6af8277ec4ed47fa9f23",
+      "update_guard.py": "5d3b3fb3ed20e4d6db70fb6d4f2b3bdf5cd3f2524eacb14dc2c8aa7ba30c869f",
+      "machine_service.py": "709d9106753c0cd21b4b0ff35bcb3ba6e51e890619abb699b05a7fac6ae1d997"
+    },
+    "regressions": [
+      {
+        "environment": "Windows portable Python 3.12.6",
+        "tests_run": 199,
+        "success": true,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "runtime_unchanged": true,
+        "packages": {
+          "httpx": "0.28.1",
+          "httpcore": "1.0.9",
+          "fastapi": "0.115.6",
+          "isal": "1.9.1",
+          "httptools": "0.9.0"
+        }
+      },
+      {
+        "environment": "Windows Python 3.12.6",
+        "tests_run": 199,
+        "success": true,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "runtime_unchanged": true,
+        "packages": {
+          "httpx": "0.28.1",
+          "httpcore": "1.0.9",
+          "fastapi": "0.115.6",
+          "isal": "1.9.1",
+          "httptools": "0.9.0"
+        }
+      },
+      {
+        "environment": "Windows Python 3.10.11",
+        "tests_run": 199,
+        "success": true,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "runtime_unchanged": true,
+        "packages": {
+          "httpx": "0.28.1",
+          "httpcore": "1.0.9",
+          "fastapi": "0.115.6",
+          "isal": "1.9.1",
+          "httptools": "0.9.0"
+        }
+      }
+    ],
+    "managed_updates": [
+      {
+        "mode": "success",
+        "status": "passed",
+        "real_provider_calls": 0,
+        "elapsed_s": 25.11,
+        "env_unchanged": true,
+        "settings_unchanged": true,
+        "final_version": "1.9.1"
+      },
+      {
+        "mode": "early-worker-exit",
+        "status": "passed",
+        "real_provider_calls": 0,
+        "elapsed_s": 18.39,
+        "env_unchanged": true,
+        "settings_unchanged": true,
+        "final_version": "1.9.0"
+      },
+      {
+        "mode": "cold-supervisor-import",
+        "status": "passed",
+        "real_provider_calls": 0,
+        "elapsed_s": 17.328,
+        "env_unchanged": true,
+        "settings_unchanged": true,
+        "final_version": "1.9.0"
+      },
+      {
+        "mode": "health-timeout",
+        "status": "passed",
+        "real_provider_calls": 0,
+        "elapsed_s": 45.797,
+        "env_unchanged": true,
+        "settings_unchanged": true,
+        "final_version": "1.9.0"
+      }
+    ],
+    "real_windows_resilience": {
+      "status": "passed",
+      "checks": [
+        "real-supervisor-custom-panel-port",
+        "slow-provider-no-watchdog-restart",
+        "real-errors-auto-profile-saved",
+        "automatic-report-sanitized",
+        "suspended-worker-auto-recovery",
+        "independent-panel-remains-accessible",
+        "crash-active-history-interrupted",
+        "browser-manual-recovery-with-confirmation",
+        "history-settings-env-preserved-through-restarts"
+      ],
+      "real_provider_calls": 0,
+      "production_port_touched": false,
+      "automatic_recovery_seconds": 27.42,
+      "manual_recovery_seconds": 7.84,
+      "responsive_provider_seconds": 42.19
+    },
+    "measurement_note": "Only telemetry.py changed after the published performance measurements; payload transformation, transport and panel asset bytes are unchanged. Performance and endurance tables are retained as measurements of the earlier feature snapshot."
   }
 }

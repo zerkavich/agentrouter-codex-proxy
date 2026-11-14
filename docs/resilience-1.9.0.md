@@ -94,7 +94,7 @@ Loopback first-output delivery, milliseconds; 180 adjacent AB/BA pairs per scena
 
 Median differences are at most 0.499 ms in this run. 5 of 6 paired-median bootstrap intervals include zero; p95 varies more. The table describes these loopback fixtures, not a general speedup or a guarantee of zero overhead. Provider generation and internet latency are excluded. Bootstrap samples can have serial correlation.
 
-The final snapshot passed 197 tests with zero failures/errors/skips in portable Python 3.12.6, local Python 3.12.6 and Python 3.10.11. The real Windows supervisor/browser test verified RU/English, mobile layouts, saved settings, offline history, automatic reports, and automatic/manual recovery. An owned suspended worker recovered in 29.69 s; manual browser recovery took 8.95 s. A responsive 42.55 s provider stream did not trigger recovery.
+The feature snapshot passed 197 tests with zero failures/errors/skips in portable Python 3.12.6, local Python 3.12.6 and Python 3.10.11. The real Windows supervisor/browser test verified RU/English, mobile layouts, saved settings, offline history, automatic reports, and automatic/manual recovery. An owned suspended worker recovered in 29.69 s; manual browser recovery took 8.95 s. A responsive 42.55 s provider stream did not trigger recovery.
 
 Four real managed-update scenarios passed: success, early worker exit rollback, cold supervisor import rollback, and health timeout rollback. They preserved configuration and saved settings.
 
@@ -103,3 +103,9 @@ A separate 15-minute synthetic workload completed 9,356 successful calls and 5,3
 The retained history database passed its integrity check and row/page bounds, with zero active records after all handlers finished. An additional one-minute test injected cancellation/compression bursts every cycle and also ended with zero unfinished handlers, queued history work or active history records. Its 4,632 dropped metadata operations demonstrate bounded best-effort recording under overload; accepted starts kept their reserved completion capacity.
 
 Allowlisted raw data: [memory](evidence/1.9.0/memory.json), [latency and paired intervals](evidence/1.9.0/latency.json), and [validation with source hashes](evidence/1.9.0/validation.json). The validation manifest includes both tested Windows byte hashes and LF-normalized Git hashes. Local paths, credential/configuration hashes and private machine state are excluded.
+
+## Publication followup: SQLite lifecycle
+
+The first GitHub Actions run found a Windows Python 3.10 teardown failure: the temporary history database was still open. The final publication closes a connection immediately when its initialization fails and allows up to ten seconds for graceful history-writer shutdown. Shutdown reports whether the writer has exited and can be retried. This wait occurs only at shutdown; history enqueue and API forwarding remain unchanged.
+
+The final publication passed 199 tests with zero failures/errors/skips in portable and local Python 3.12.6 and Python 3.10.11. All four real managed-update/rollback scenarios and the real Windows supervisor/browser recovery check were rerun against its exact source hashes and passed. The validation manifest retains the original measurements and appends these final hashes and checks.

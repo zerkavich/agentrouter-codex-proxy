@@ -11,6 +11,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from unittest import mock
@@ -61,7 +62,7 @@ class HistoryStoreTests(unittest.TestCase):
         self.assertTrue(self.store.available)
 
     def tearDown(self):
-        self.store.close()
+        self.assertTrue(self.store.close())
         self.directory.cleanup()
 
     def flush(self, store=None):
@@ -200,6 +201,60 @@ class HistoryStoreTests(unittest.TestCase):
         self.assertEqual(failed.pending.qsize(), 16)
         failed.close()
 
+    def test_connection_initialization_failure_closes_the_opened_database(self):
+        connect = sqlite3.connect
+        opened = []
+
+        class FailedPragma(sqlite3.Connection):
+            def execute(self, sql, parameters=()):
+                if sql.startswith('PRAGMA'):
+                    raise sqlite3.OperationalError('synthetic_initialization_failure')
+                return super().execute(sql, parameters)
+
+        def failing_connection(*args, **kwargs):
+            database = connect(*args, factory=FailedPragma, **kwargs)
+            opened.append(database)
+            return database
+
+        for write in (False, True):
+            with self.subTest(write=write):
+                with mock.patch('telemetry.sqlite3.connect', side_effect=failing_connection):
+                    with self.assertRaises(sqlite3.OperationalError):
+                        self.store._connect(write=write)
+                try:
+                    with self.assertRaises(sqlite3.ProgrammingError):
+                        opened[-1].execute('SELECT 1')
+                finally:
+                    opened[-1].close()
+
+    def test_close_reports_an_unfinished_writer_and_can_be_retried(self):
+        store = HistoryStore(self.path.with_name('slow-shutdown.sqlite3'))
+        entered, release = threading.Event(), threading.Event()
+        initialize = store._schema
+
+        def slow_initialize(database):
+            entered.set()
+            release.wait(5)
+            initialize(database)
+
+        try:
+            with mock.patch.object(store, '_schema', side_effect=slow_initialize):
+                store.start()
+                self.assertTrue(entered.wait(5))
+                self.assertFalse(store.close(timeout=0))
+                self.assertTrue(store.thread.is_alive())
+                release.set()
+                self.assertTrue(store.close())
+                self.assertFalse(store.thread.is_alive())
+                self.assertTrue(store.close(timeout=0))
+            # Windows refuses the rename if the writer still owns the file.
+            store.path.rename(store.path.with_suffix('.closed'))
+        finally:
+            release.set()
+            store.close()
+            if store.thread is not None:
+                store.thread.join(5)
+
     def test_two_process_style_writers_and_readers_share_wal_history(self):
         other = HistoryStore(self.path, max_requests=100, hours=1)
         other.start()
@@ -256,6 +311,7 @@ class RequestHistoryTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         self.release.set()
         await self.runtime.close()
+        self.assertFalse(self.runtime.history.thread.is_alive())
         await self.client.aclose()
         self.directory.cleanup()
 
