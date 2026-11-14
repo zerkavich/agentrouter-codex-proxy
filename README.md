@@ -2,7 +2,7 @@
 
 A lightweight local compatibility proxy that fixes cross-resource session errors when using **Codex Desktop** or **Codex CLI** with **AgentRouter**.
 
-Version **1.8.0** adds a local browser control panel at **http://127.0.0.1:8788/**. Watch active streams and queues, capture a diagnostic report, save tuning settings, pause/resume, restart and install compatible updates from this fork's `main`.
+Version **1.9.0** adds an independent browser panel at **http://127.0.0.1:8789/**, automatic recovery of an unresponsive worker, bounded request/metrics history and Russian/English interfaces. API traffic stays on **127.0.0.1:8788**. Payload transformations use less temporary memory, and the default per-stream queue is 256 KiB. See [changes and measurements](docs/resilience-1.9.0.md).
 
 ---
 
@@ -58,7 +58,7 @@ Use the same resource that created the item to access it. [trace_id=...]
 6. **Cancellation Cleanup**: Releases pending upstream sends, partially read JSON/error bodies and SSE responses when a client disconnects or downstream delivery fails, preventing abandoned connections from exhausting HTTPX's pool.
 7. **Native Acceleration**: Uses ISA-L gzip and Uvicorn's native HTTP parser, prepares the connection pool during startup, and avoids redundant copying and timer allocation while draining buffered SSE data.
 8. **Quota Recovery & Diagnostics**: Fair cancellable launches preserve newer cooldowns against older successes, honor explicit retry hints and expose sanitized live status plus temporary timing capture.
-9. **Browser Management**: The bundled panel provides overview, diagnostics, 23 tuning settings and explicit update controls. A prepared shared installation verifies packages, waits for active requests, checks the new worker and rolls back startup failures.
+9. **Browser Management**: The bundled RU/English panel provides overview, request history, diagnostics, 30 tuning settings and explicit update controls. An independent supervisor listener keeps history and recovery accessible when the worker hangs. A prepared shared installation verifies packages, waits for active requests, checks the new worker and rolls back startup failures.
 
 ---
 
@@ -89,7 +89,7 @@ python service.py --host 0.0.0.0 --port 8788
 uvicorn proxy:app --host 0.0.0.0 --port 8788
 ```
 
-Open **http://127.0.0.1:8788/** for management. Use `service.py` or the protected `machine_service.py` entrypoint for browser restarts; direct `proxy.py`/`uvicorn` launches expose the panel but need an external restart. Browser package installation requires the prepared machine-wide permissions described in the installation guide. Normal use requires no Node.js, CDN or external fonts.
+Open **http://127.0.0.1:8789/** for independent management when running `service.py` or the protected `machine_service.py` entrypoint. The worker also serves the panel on **8788**; direct `proxy.py`/`uvicorn` launches expose only that panel and need an external restart. Select Russian or English in the header; the browser remembers the choice. Browser package installation requires the prepared machine-wide permissions described in the installation guide. Normal use requires no Node.js, CDN or external fonts.
 > [!IMPORTANT]
 > By default the listener binds `127.0.0.1` (loopback only) and cannot be changed via `.env`. Only pass `--host 0.0.0.0` (or `-BindHost 0.0.0.0`) inside isolated Docker/Proxmox or firewalled LAN setups, and avoid setting a shared fallback API key if other machines can reach the port.
 

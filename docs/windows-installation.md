@@ -1,6 +1,6 @@
 # Windows installation
 
-This guide covers Windows 10/11, Codex configuration, background startup, browser management, verification and removal. Version 1.8.0 has 154 regression tests checked with Python 3.10 and 3.12, including the installed portable Python runtime and its pinned native packages. Node.js is needed only to rebuild the panel; running the proxy needs Python.
+This guide covers Windows 10/11, Codex configuration, background startup, browser management, verification and removal. Version 1.9.0 adds independent management, Russian/English interfaces, bounded request history and lower-memory payload processing. Node.js is needed only to rebuild the panel; running the proxy needs Python. See [validation and measurements](resilience-1.9.0.md) for the tested release.
 
 ## 1. Install Python and Git
 
@@ -53,9 +53,9 @@ Leave that window open. In a second PowerShell window:
 Invoke-RestMethod 'http://127.0.0.1:8788/_health'
 ```
 
-Expect `status: ok`, `version: 1.8.0`, `listen: 127.0.0.1:8788`, `request_gzip_backend: isal`, `connection_pool_initialized: true`, `upstream_pool_cleanup_active: true` and a `stats` object. The gzip backend can be available even when request compression is disabled. Keep the default loopback address for a proxy shared by accounts on the same PC.
+Expect `status: ok`, `version: 1.9.0`, `listen: 127.0.0.1:8788`, `request_gzip_backend: isal`, `connection_pool_initialized: true`, `upstream_pool_cleanup_active: true` and a `stats` object. The gzip backend can be available even when request compression is disabled. Keep the default loopback address for a proxy shared by accounts on the same PC.
 
-Open **http://127.0.0.1:8788/** in a browser. Running through `service.py` enables restart controls; direct `proxy.py` or `uvicorn` launches need an external process restart. The `ExecutionPolicy Bypass` used by PowerShell scripts below applies only to their process.
+Open **http://127.0.0.1:8789/** in a browser. This supervisor panel remains accessible while the worker on 8788 hangs, and can recover it manually or automatically. Check `http://127.0.0.1:8789/_control/api/status` for `supervisor.independent: true` and `worker_responsive: true`. Select Russian or English in the header; the browser remembers the selection. The worker also serves management on 8788. Direct `proxy.py` or `uvicorn` launches expose only the worker panel and need an external restart. The `ExecutionPolicy Bypass` used by PowerShell scripts below applies only to their process.
 
 ## 4. Connect Codex
 
@@ -199,16 +199,21 @@ If an existing installation uses portable Python in `AgentRouterCodexProxy\runti
 
 ## 7. Manage the proxy in a browser
 
-Open **http://127.0.0.1:8788/**; `/_control/` opens the same panel. The four sections are:
+Open **http://127.0.0.1:8789/**; `/_control/` opens the same independent panel. API traffic stays on 8788, with no additional management forwarding in its path. The five sections are:
 
 | Section | Controls |
 | --- | --- |
 | Overview | Active requests including open streams, queues, pool state, pause/resume and graceful or forced restart. |
+| History | Request times, outcomes, duration, byte counts and wait stages; daily RAM/queue graphs; recovery events and saved automatic reports. |
 | Diagnostics | Start/stop an automatically expiring profile, view timing aggregates and download a sanitized JSON report. |
-| Settings | Edit 23 tuning values, save them separately from `.env`, and apply them with a worker restart. |
+| Settings | Edit 30 tuning values, including retention and watchdog behavior, save them separately from `.env`, and apply them with a worker restart. |
 | Updates | Explicitly check fork `main`, prepare a verified package, confirm installation and see success or rollback. |
 
-Settings are shared by users of this proxy instance. A stale settings revision is rejected if another tab changed it. The panel does not edit Codex's model, credentials, provider, listener port or conversation history. Downloaded reports contain counters and aggregate timings; graph history stays in the current tab.
+Settings are shared by users of this proxy instance. A stale settings revision is rejected if another tab changed it. The panel does not edit Codex's model, credentials, provider, listener port or conversation history. Numeric history persists across restarts: defaults are 2000 requests over 24 hours, 1440 metric points and 16 automatic reports. Prompt/output text, headers and credentials are never recorded. Clearing history requires confirmation and preserves Codex chats. Worker RAM is shown separately from the supervisor and browser.
+
+If the worker stops responding, **Recover proxy** replaces that owned process after confirmation; active calls must be retried in Codex. Automatic recovery requires three failed checks spaced ten seconds apart, a thirty-second startup grace, and no active managed update. Its limit is three automatic recoveries per ten minutes. A slow provider response does not trigger recovery when the worker's local health/status remains responsive. If both panels are unavailable, use the task restart procedure above.
+
+The extra panel port defaults to the worker port plus one. If it is occupied, set a free `PROXY_PANEL_PORT` in `.env` and restart the supervisor. The service leaves other listeners untouched and logs a warning; automatic recovery requires the independent panel to start successfully.
 
 The browser makes no CDN/font requests and does not automatically poll GitHub. Local status polling slows or pauses in hidden tabs. Controls require a loopback client, the correct local Host/Origin and a per-worker token; exposing the API on a LAN does not enable remote control access.
 
@@ -243,6 +248,7 @@ Get-NetTCPConnection -LocalPort 8788 -State Listen -ErrorAction SilentlyContinue
 
 - **Connection refused:** check that the selected task is running, that Python and dependencies are readable by its account, and that the configured port is 8788.
 - **Port occupied:** use one proxy instance. Inspect the owning process before changing its state.
+- **8788 hangs but 8789 works:** inspect retained history and use **Recover proxy**. Active calls interrupted by recovery are marked in history and can be retried in Codex. A series of 502 responses from a responsive worker remains an upstream/transport diagnosis, rather than a reason for watchdog restart.
 - **502 with `PoolTimeout`:** install the complete current runtime. It releases abandoned sends before response headers arrive, partially read JSON and cancelled SSE responses. Version 1.8.0 receives client disconnect events during Responses waits/sends instead of periodically checking a self-cancelling scope. Admission waiters stay outside HTTPcore, and abandoned CONNECTING/ACTIVE pool entries are reclaimed under its normal lock. `pool_timeouts`, `upstream_capacity_waits`, `upstream_disconnect_cancellations` and `upstream_orphaned_connections_reclaimed` are cumulative counters. When abandoned requests finish cleanup, `upstream_slots_in_use` and `upstream_slot_waiters` in `/_health` should return to zero if no other requests are active. A generic 502 may still be an upstream/network failure. Use the browser restart or emergency procedure when needed; a Windows reboot is unnecessary.
 - **`upstream_pool_cleanup_active: false`:** verify that all pinned `requirements.txt` packages were installed. The cleanup wrapper depends on the supported HTTPcore pool layout; rerun the regression suite before adopting dependency upgrades.
 - **401/403:** check the affected Codex user's AgentRouter credentials. A successful local health check does not authenticate upstream requests.

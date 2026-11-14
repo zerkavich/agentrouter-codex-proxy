@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+from collections import deque
+from concurrent.futures import Future
 from datetime import datetime, timezone
 import hashlib
 import hmac
@@ -15,9 +17,10 @@ import time
 from urllib.parse import urlsplit
 import uuid
 
-from fastapi import APIRouter, Request
-from fastapi.responses import FileResponse, JSONResponse, Response
-from starlette.requests import ClientDisconnect
+from starlette.requests import ClientDisconnect, Request
+from starlette.responses import FileResponse, JSONResponse, Response
+
+from telemetry import HistoryStore, RequestRecord, REQUEST_RECORD
 
 
 SETTINGS = {
@@ -38,12 +41,19 @@ SETTINGS = {
     'PROXY_RECOVERY_STAGGER_S': {'kind': 'float', 'default': 0.6, 'min': 0, 'max': 5, 'group': 'recovery'},
     'PROXY_RATE_LIMIT_SCOPE': {'kind': 'enum', 'default': 'credential', 'values': ['credential', 'shared'], 'group': 'recovery'},
     'PROXY_RATE_LIMIT_PARTITIONS': {'kind': 'int', 'default': 256, 'min': 1, 'max': 4096, 'group': 'recovery'},
-    'PROXY_SSE_BUFFER_BYTES': {'kind': 'int', 'default': 1048576, 'min': 65536, 'max': 16777216, 'group': 'streaming'},
+    'PROXY_SSE_BUFFER_BYTES': {'kind': 'int', 'default': 262144, 'min': 65536, 'max': 16777216, 'group': 'streaming'},
     'PROXY_SSE_PRIME_BYTES': {'kind': 'int', 'default': 262144, 'min': 65536, 'max': 4194304, 'group': 'streaming'},
     'PROXY_SSE_PRIME_FRAMES': {'kind': 'int', 'default': 1024, 'min': 1, 'max': 8192, 'group': 'streaming'},
     'PROXY_SSE_PRIME_FIRST_TIMEOUT_S': {'kind': 'float', 'default': 45, 'min': 1, 'max': 180, 'group': 'streaming'},
     'PROXY_SSE_PRIME_CREATED_GRACE_S': {'kind': 'float', 'default': 3, 'min': 0, 'max': 30, 'group': 'streaming'},
     'PROXY_TIMINGS': {'kind': 'bool', 'default': False, 'group': 'diagnostics'},
+    'PROXY_HISTORY_ENABLED': {'kind': 'bool', 'default': True, 'group': 'history'},
+    'PROXY_HISTORY_MAX_REQUESTS': {'kind': 'int', 'default': 2000, 'min': 100, 'max': 10000, 'group': 'history'},
+    'PROXY_HISTORY_HOURS': {'kind': 'int', 'default': 24, 'min': 1, 'max': 168, 'group': 'history'},
+    'PROXY_AUTO_DIAGNOSTICS': {'kind': 'bool', 'default': True, 'group': 'diagnostics'},
+    'PROXY_WATCHDOG': {'kind': 'bool', 'default': True, 'group': 'recovery'},
+    'PROXY_WATCHDOG_INTERVAL_S': {'kind': 'int', 'default': 10, 'min': 5, 'max': 60, 'group': 'recovery'},
+    'PROXY_WATCHDOG_FAILURES': {'kind': 'int', 'default': 3, 'min': 3, 'max': 12, 'group': 'recovery'},
 }
 
 
@@ -177,7 +187,7 @@ class ControlRuntime:
     def __init__(self, root, version, port, health, diagnostics, timings, active_settings=None):
         self.root, self.version = Path(root), version
         self.port, self.health, self.diagnostics, self.timings = port, health, diagnostics, timings
-        self.active_settings = active_settings or current_settings()
+        self.active_settings = {**current_settings(), **(active_settings or {})}
         self.token = secrets.token_urlsafe(32)
         self.active = 0
         self.paused = os.environ.get('PROXY_CONTROL_BOOT_PAUSED') == '1'
@@ -190,6 +200,63 @@ class ControlRuntime:
         self.update_info = {'state': 'not_checked', 'update_available': False}
         self.supervisor_token = os.environ.get('PROXY_SUPERVISOR_TOKEN', '')
         self.supervised = len(self.supervisor_token) >= 32
+        self.history = None
+        self.history_task = None
+        self.error_times = deque(maxlen=16)
+        self.auto_profile_until = 0.0
+        self.auto_profile_cooldown = 0.0
+        self.auto_profile_saved = False
+
+    async def start(self):
+        self.history = HistoryStore(state_dir(self.root) / 'request-history.sqlite3',
+                                    max_requests=self.active_settings['PROXY_HISTORY_MAX_REQUESTS'],
+                                    hours=self.active_settings['PROXY_HISTORY_HOURS'],
+                                    enabled=self.active_settings['PROXY_HISTORY_ENABLED'])
+        self.history.start()
+        if self.history.enabled:
+            self.history_task = asyncio.create_task(self._history_loop())
+
+    async def _history_loop(self):
+        next_metric = 0.0
+        while True:
+            now = time.monotonic()
+            if now >= next_metric:
+                data = await self.diagnostics()
+                self.history.metric(data, {'active_requests': self.active})
+                next_metric = now + 60
+            if self.auto_profile_until and now >= self.auto_profile_until and not self.auto_profile_saved:
+                from doctor import sanitize_snapshot
+                report = sanitize_snapshot(await self.health(), await self.diagnostics())
+                completion = Future()
+                if self.history.report(report, completion):
+                    try:
+                        stored = await asyncio.wait_for(asyncio.wrap_future(completion), 5)
+                    except asyncio.TimeoutError:
+                        stored = False
+                    if stored:
+                        self.history.event('auto_profile_saved')
+                        self.auto_profile_saved = True
+            await asyncio.sleep(5)
+
+    def record_finished(self, record):
+        if self.history is None:
+            return
+        self.history.request(record)
+        if not self.history.enabled:
+            return
+        failed = (record.status >= 500 and record.error != 'proxy_paused') or record.error in ('upstream_stream_error', 'upstream_response_failed', 'stream_incomplete', 'handler_error')
+        cancelled = record.status == 499 or (record.disconnected and not record.complete)
+        if not failed or cancelled or not self.active_settings['PROXY_AUTO_DIAGNOSTICS']:
+            return
+        now = time.monotonic()
+        self.error_times.append(now)
+        while self.error_times and self.error_times[0] < now - 60:
+            self.error_times.popleft()
+        if len(self.error_times) >= 3 and now >= self.auto_profile_cooldown:
+            self.timings.profile(60)
+            self.auto_profile_until, self.auto_profile_cooldown = now + 60, now + 300
+            self.auto_profile_saved = False
+            self.history.event('auto_profile_started', failures=len(self.error_times), duration_s=60)
 
     def idle_event(self):
         if self.idle is None:
@@ -212,16 +279,31 @@ class ControlRuntime:
         if self.restart_task is not None and not self.restart_task.done():
             self.restart_task.cancel()
             await asyncio.gather(self.restart_task, return_exceptions=True)
+        if self.history_task is not None:
+            self.history_task.cancel()
+            await asyncio.gather(self.history_task, return_exceptions=True)
+        if self.history is not None:
+            await asyncio.to_thread(self.history.close)
 
     def management(self):
         values, revision = load_settings(self.root)
         effective = {**self.active_settings, **values}
+        try:
+            panel_port = int(os.environ.get('PROXY_PANEL_PORT', str(self.port + 1)))
+        except ValueError:
+            panel_port = self.port + 1
         return {'active_requests': self.active, 'paused': self.paused, 'draining': self.draining,
                 'restart_supported': self.supervised, 'restart_job': self.restart_job,
                 'last_action': safe_action(self.root), 'settings_revision': revision,
                 'pending_settings': effective != self.active_settings,
                 'updates_supported': os.environ.get('PROXY_CONTROL_UPDATES') == '1',
-                'update': self.update_info}
+                'update': self.update_info,
+                'history': self.history.snapshot() if self.history else {'enabled': False, 'available': False},
+                'auto_diagnostics': {'enabled': self.active_settings['PROXY_AUTO_DIAGNOSTICS'],
+                                     'capturing': self.auto_profile_until > time.monotonic(),
+                                     'saved': self.auto_profile_saved},
+                'independent_panel_url': 'http://127.0.0.1:' + str(panel_port) + '/'
+                    if self.supervised and 0 < panel_port <= 65535 and panel_port != self.port else None}
 
     async def save_settings(self, changes, revision):
         clean = validate_settings(changes)
@@ -269,6 +351,15 @@ class ControlRuntime:
             await asyncio.sleep(0.4)
             if not force:
                 await self.idle_event().wait()
+            # Persist completed calls before the Windows supervisor replaces
+            # the process. A failed/slow history disk cannot block restart.
+            if self.history is not None and self.history.enabled:
+                completion = Future()
+                if self.history.submit('barrier', None, completion):
+                    try:
+                        await asyncio.wait_for(asyncio.wrap_future(completion), 2)
+                    except asyncio.TimeoutError:
+                        pass
             command = {'action': 'update' if commit else 'restart', 'token': self.supervisor_token,
                        'worker_pid': os.getpid(), 'id': self.restart_job['id'], 'started_at': self.restart_job['started_at']}
             if commit:
@@ -297,7 +388,7 @@ class ControlRuntime:
 
 
 class ProxyActivityMiddleware:
-    """Two counters around API traffic; no extra task, timer or response buffering."""
+    """Full stream lifetime accounting and small metadata records; no body copies."""
     def __init__(self, app, runtime):
         self.app, self.runtime = app, runtime
 
@@ -307,16 +398,55 @@ class ProxyActivityMiddleware:
                 or path in ('/_health', '/_stats', '/_diagnostics', '/_diagnostics/profile', '/favicon.ico')):
             return await self.app(scope, receive, send)
         runtime = self.runtime
+        record = RequestRecord(scope.get('method', 'OTHER'), path) if runtime.history and runtime.history.enabled else None
+        context = REQUEST_RECORD.set(record) if record is not None else None
+        if record is not None:
+            runtime.history.begin_request(record)
+            original_send, original_receive = send, receive
+            async def send(message):
+                if message['type'] == 'http.response.start':
+                    record.status = message['status']
+                    record.headers_ms = round((time.perf_counter() - record.started) * 1000, 3)
+                elif message['type'] == 'http.response.body':
+                    record.response_bytes += len(message.get('body', b''))
+                await original_send(message)
+                if message['type'] == 'http.response.body' and not message.get('more_body', False):
+                    record.complete = True
+            async def receive():
+                message = await original_receive()
+                if message['type'] == 'http.request':
+                    record.request_bytes += len(message.get('body', b''))
+                elif message['type'] == 'http.disconnect':
+                    record.disconnected = True
+                return message
         if runtime.paused or runtime.draining:
+            if record is not None:
+                record.error = 'proxy_paused'
             reason = 'Proxy is waiting for a controlled restart' if runtime.draining else 'New proxy requests are paused in the local panel'
             response = JSONResponse(status_code=503, headers={'Retry-After': '2'},
                                     content={'error': {'type': 'proxy_paused', 'message': reason}})
-            return await response(scope, receive, send)
+            try:
+                return await response(scope, receive, send)
+            finally:
+                if record is not None:
+                    runtime.record_finished(record)
+                    REQUEST_RECORD.reset(context)
         runtime.enter()
         try:
             await self.app(scope, receive, send)
+        except asyncio.CancelledError:
+            if record is not None:
+                record.disconnected = True
+            raise
+        except Exception:
+            if record is not None:
+                record.error = 'handler_error'
+            raise
         finally:
             runtime.leave()
+            if record is not None:
+                runtime.record_finished(record)
+                REQUEST_RECORD.reset(context)
 
 
 def local_request(request, port, *, mutation=False, token=None, navigation=False):
@@ -379,6 +509,10 @@ HEADERS = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
 
 
 def attach_control(app, runtime):
+    # Supervisor settings/history helpers do not need FastAPI or Pydantic.
+    # Load the router only when attaching worker routes; request types and
+    # responses are the same Starlette objects re-exported by FastAPI.
+    from fastapi import APIRouter
     router = APIRouter()
     assets = runtime.root / 'panel'
 
@@ -455,6 +589,47 @@ def attach_control(app, runtime):
         except ControlError as exc:
             return error(exc)
 
+    @router.get('/_control/api/history/{kind}')
+    async def history(request: Request, kind: str):
+        try:
+            checked(request)
+            if runtime.history is None:
+                raise ControlError('history_unavailable', 503)
+            if kind == 'requests':
+                parameters = request.query_params
+                if len(parameters) > 3 or any(key not in ('before', 'outcome', 'limit') or len(parameters.getlist(key)) != 1 for key in parameters):
+                    raise ControlError('invalid_history_filter')
+                try:
+                    limit = int(parameters.get('limit', '50'))
+                    before = int(parameters['before']) if 'before' in parameters else None
+                    if not 1 <= limit <= 100 or (before is not None and not 1 <= before < 2**63):
+                        raise ValueError()
+                    result = await asyncio.to_thread(runtime.history.requests, before=before,
+                                                     outcome=parameters.get('outcome'), limit=limit)
+                except ValueError:
+                    raise ControlError('invalid_history_filter') from None
+            elif kind in ('metrics', 'events', 'reports'):
+                result = await asyncio.to_thread(getattr(runtime.history, kind))
+            else:
+                raise ControlError('unknown_history_route', 404)
+            return JSONResponse(result, headers=HEADERS)
+        except ControlError as exc:
+            return error(exc)
+
+    @router.get('/_control/api/history/report/{identifier}')
+    async def history_report(request: Request, identifier: str):
+        try:
+            checked(request)
+            if runtime.history is None or not identifier.isdigit() or len(identifier) > 18:
+                raise ControlError('history_report_unavailable', 404)
+            result = await asyncio.to_thread(runtime.history.saved_report, int(identifier))
+            if result is None:
+                raise ControlError('history_report_unavailable', 404)
+            return Response(json.dumps(result, indent=2, allow_nan=False), media_type='application/json',
+                            headers={**HEADERS, 'Content-Disposition': 'attachment; filename="proxy-auto-report-' + identifier + '.json"'})
+        except ControlError as exc:
+            return error(exc)
+
     @router.post('/_control/api/{action:path}')
     async def command(request: Request, action: str):
         try:
@@ -485,6 +660,13 @@ def attach_control(app, runtime):
                 result = {'paused': paused, 'active_requests': runtime.active}
             elif action == 'settings':
                 result = await runtime.save_settings(data.get('changes'), data.get('revision'))
+            elif action == 'history/clear':
+                if data.get('confirm') is not True or runtime.history is None:
+                    raise ControlError('history_clear_requires_confirmation')
+                if not runtime.history.submit('clear', None):
+                    raise ControlError('history_unavailable', 503)
+                result = {'accepted': True}
+                code = 202
             elif action == 'restart':
                 force = data.get('force', False)
                 if not isinstance(force, bool):

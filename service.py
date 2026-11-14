@@ -11,13 +11,16 @@ file (`logs/proxy.log`).
 from __future__ import annotations
 
 import argparse
+from collections import deque
 import ipaddress
 import json
 import hmac
 import hashlib
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
 import signal
 import secrets
+import re
 import socket
 import subprocess
 import sys
@@ -28,6 +31,7 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import urlsplit, parse_qs
 
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
@@ -344,6 +348,433 @@ def _write_control_action(root: Path, action: dict):
         pass
 
 
+class IndependentPanel:
+    """Small stdlib control listener. Never transports Codex/provider traffic.
+
+    A bounded handler pool serves files from disk and relays only allowlisted
+    control calls. Its health monitor and history reader survive worker failure.
+    """
+    READ_ROUTES = frozenset(('settings', 'report'))
+    WRITE_ROUTES = frozenset(('pause', 'settings', 'restart', 'restart/cancel', 'profile',
+                             'profile/stop', 'updates/check', 'updates/prepare', 'updates/install'))
+
+    def __init__(self, root, worker_port, host, token, context, logger, panel_port=None):
+        from control import state_dir, current_settings, load_settings, ControlError
+        from telemetry import HistoryStore, RuntimeTimings
+        self.root, self.worker_port, self.host = Path(root), worker_port, host
+        self.port = panel_port if panel_port is not None else worker_port + 1
+        self.supervisor_token, self.context, self.logger = token, context, logger
+        self.token = secrets.token_urlsafe(32)
+        self.lock, self.action_lock, self.session_lock = threading.Lock(), threading.Lock(), threading.Lock()
+        self.worker_token = None
+        self.worker_pid = None
+        self.worker_started = time.monotonic()
+        self.failures = 0
+        self.last_seen = None
+        self.last_seen_mono = 0.0
+        self.responsive = False
+        self.status_available = False
+        self.restarts = deque(maxlen=3)
+        self.next_watchdog = 0.0
+        self.stop = threading.Event()
+        self.recovery_requested = threading.Event()
+        self.server = self.thread = self.monitor = None
+        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        self.base = f'http://{_format_url_host(_probe_connect_host(host))}:{worker_port}/_control/api/'
+        self.values = current_settings()
+        try:
+            self.values.update(load_settings(root)[0])
+        except ControlError:
+            pass
+        self.history = HistoryStore(state_dir(root) / 'request-history.sqlite3',
+                                    max_requests=self.values['PROXY_HISTORY_MAX_REQUESTS'],
+                                    hours=self.values['PROXY_HISTORY_HOURS'],
+                                    enabled=self.values['PROXY_HISTORY_ENABLED'], queue_size=64)
+        self.version = 'unknown'
+        with (self.root / 'proxy.py').open('r', encoding='utf-8') as stream:
+            match = re.search(r'^VERSION\s*=\s*[\"\'](\d+\.\d+\.\d+)[\"\']', stream.read(65536), re.M)
+        if match:
+            self.version = match.group(1)
+        self.cache = {'snapshot': {'proxy': 'agentrouter-codex-proxy', 'schema_version': 1,
+            'version': self.version, 'process_id': None, 'status': 'unavailable',
+            'uptime_s': 0, 'listen': f'{host}:{worker_port}', 'counts': {},
+            'connection_pool': {'in_use': 0, 'max_inflight': 50, 'waiters': 0},
+            'rate_limits': {'queued_requests': 0, 'cooldown_s': 0},
+            'compression': {'enabled': False}, 'streaming': {}, 'findings': [],
+            'timing_mode': 'off', 'profile_remaining_s': 0, 'timings': RuntimeTimings(False).snapshot()},
+            'management': {'active_requests': 0, 'paused': False, 'draining': False,
+                'restart_supported': True, 'restart_job': None, 'pending_settings': False,
+                'updates_supported': False, 'update': {'state': 'not_checked', 'update_available': False}}}
+
+    def start(self):
+        if not 1 <= self.port <= 65535 or self.port == self.worker_port:
+            return False
+        owner = self
+        class Server(ThreadingHTTPServer):
+            daemon_threads = True
+            allow_reuse_address = False
+            request_queue_size = 8
+            slots = threading.BoundedSemaphore(6)
+            def process_request(self, request, address):
+                if not self.slots.acquire(blocking=False):
+                    try:
+                        request.settimeout(0.5)
+                        request.sendall(b'HTTP/1.0 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n')
+                    except OSError:
+                        pass
+                    self.shutdown_request(request)
+                    return
+                try:
+                    super().process_request(request, address)
+                except Exception:
+                    self.slots.release()
+                    raise
+            def process_request_thread(self, request, address):
+                try:
+                    super().process_request_thread(request, address)
+                finally:
+                    self.slots.release()
+
+        class Handler(BaseHTTPRequestHandler):
+            protocol_version = 'HTTP/1.0'
+            def log_message(self, *args):
+                pass
+            def setup(self):
+                super().setup()
+                self.connection.settimeout(5)
+            def respond(self, status, body, media='application/json', disposition=None):
+                from control import HEADERS
+                self.send_response(status)
+                for key, value in HEADERS.items():
+                    self.send_header(key, value)
+                self.send_header('Content-Type', media)
+                self.send_header('Content-Length', str(len(body)))
+                self.send_header('Connection', 'close')
+                if disposition:
+                    self.send_header('Content-Disposition', disposition)
+                self.end_headers()
+                if self.command != 'HEAD':
+                    self.wfile.write(body)
+            def dispatch(self):
+                from control import ControlError, local_request, SETTINGS
+                from starlette.requests import Request
+                try:
+                    parsed = urlsplit(self.path)
+                    if parsed.scheme or parsed.netloc or parsed.fragment:
+                        raise ControlError('unknown_panel_route', 404)
+                    path = parsed.path
+                    navigation = path in ('/', '/_control', '/_control/')
+                    scope = {'type': 'http', 'scheme': 'http', 'method': self.command,
+                             'path': path, 'query_string': parsed.query.encode('ascii'),
+                             'headers': [(key.lower().encode('latin1'), value.encode('latin1')) for key, value in self.headers.raw_items()],
+                             'client': self.client_address, 'server': ('127.0.0.1', owner.port)}
+                    local_request(Request(scope), owner.port, mutation=self.command == 'POST',
+                                  token=owner.token, navigation=navigation)
+                    if self.command in ('GET', 'HEAD') and (navigation or path.startswith('/_control/assets/')):
+                        name = 'index.html' if navigation else path[len('/_control/assets/'):]
+                        media = {'index.html': 'text/html', 'panel.js': 'text/javascript',
+                                 'panel.css': 'text/css', 'mark.svg': 'image/svg+xml'}
+                        if name not in media:
+                            raise ControlError('unknown_panel_asset', 404)
+                        asset = owner.root / 'panel' / name
+                        from control import HEADERS
+                        with asset.open('rb') as stream:
+                            self.send_response(200)
+                            for key, value in HEADERS.items():
+                                self.send_header(key, value)
+                            self.send_header('Content-Type', media[name])
+                            self.send_header('Content-Length', str(os.fstat(stream.fileno()).st_size))
+                            self.send_header('Connection', 'close')
+                            self.end_headers()
+                            if self.command != 'HEAD':
+                                while True:
+                                    chunk = stream.read(65536)
+                                    if not chunk:
+                                        break
+                                    self.wfile.write(chunk)
+                        return
+                    if path == '/favicon.ico' and self.command in ('GET', 'HEAD'):
+                        return self.respond(204, b'')
+                    if not path.startswith('/_control/api/'):
+                        raise ControlError('unknown_panel_route', 404)
+                    action = path[len('/_control/api/'):]
+                    disposition = None
+                    if self.command == 'GET':
+                        if action == 'session':
+                            value = {'token': owner.token, 'version': owner.version,
+                                     'settings_schema': SETTINGS, 'restart_supported': True}
+                        elif action == 'status':
+                            value = owner.status()
+                        elif action.startswith('history/'):
+                            value, disposition = owner.read_history(action, parsed.query)
+                        elif action in owner.READ_ROUTES:
+                            status, body, disposition = owner.relay(action)
+                            return self.respond(status, body, disposition=disposition)
+                        else:
+                            raise ControlError('unknown_panel_route', 404)
+                        return self.respond(200, json.dumps(value, allow_nan=False, separators=(',', ':')).encode(), disposition=disposition)
+                    if self.command != 'POST':
+                        raise ControlError('unknown_panel_route', 404)
+                    lengths = self.headers.get_all('Content-Length', [])
+                    if len(lengths) != 1 or self.headers.get('Transfer-Encoding'):
+                        raise ControlError('invalid_json', 400)
+                    try:
+                        length = int(lengths[0])
+                        if not 0 <= length <= 16384:
+                            raise ControlError('panel_request_too_large', 413)
+                        body = self.rfile.read(length)
+                        if len(body) != length:
+                            raise ValueError()
+                        data = json.loads(body)
+                        if not isinstance(data, dict):
+                            raise ValueError()
+                    except ValueError:
+                        raise ControlError('invalid_json', 400) from None
+                    if action == 'recover':
+                        if data.get('confirm') is not True:
+                            raise ControlError('recovery_requires_confirmation')
+                        result = owner.recover(manual=True)
+                        return self.respond(202, json.dumps(result).encode())
+                    if action == 'history/clear':
+                        if data.get('confirm') is not True:
+                            raise ControlError('history_clear_requires_confirmation')
+                        if not owner.history.submit('clear', None):
+                            raise ControlError('history_unavailable', 503)
+                        return self.respond(202, b'{"accepted":true}')
+                    if action not in owner.WRITE_ROUTES:
+                        raise ControlError('unknown_panel_action', 404)
+                    status, output, disposition = owner.relay(action, body)
+                    return self.respond(status, output, disposition=disposition)
+                except ControlError as exc:
+                    try:
+                        self.respond(exc.status, json.dumps({'error_code': exc.code, 'fields': exc.fields}).encode())
+                    except OSError:
+                        pass
+                except (BrokenPipeError, ConnectionResetError, TimeoutError):
+                    pass
+                except (OSError, ValueError, UnicodeError):
+                    try:
+                        self.respond(503, b'{"error_code":"panel_unavailable"}')
+                    except OSError:
+                        pass
+            do_GET = dispatch
+            do_POST = dispatch
+            do_HEAD = dispatch
+            do_OPTIONS = dispatch
+            do_PUT = dispatch
+            do_PATCH = dispatch
+            do_DELETE = dispatch
+
+        try:
+            self.server = Server(('127.0.0.1', self.port), Handler)
+        except OSError:
+            self.logger.write('warn ', f'independent panel port {self.port} is unavailable; worker control remains available')
+            return False
+        self.history.start()
+        if self.context()[0] is None:
+            self.history.submit('startup_recovery', time.time())
+        self.thread = threading.Thread(target=self.server.serve_forever, kwargs={'poll_interval': 0.25}, name='proxy-panel', daemon=True)
+        self.thread.start()
+        self.monitor = threading.Thread(target=self._monitor, name='proxy-watchdog', daemon=True)
+        self.monitor.start()
+        self.logger.write('ok   ', f'independent browser panel listening on http://127.0.0.1:{self.port}/')
+        return True
+
+    def close(self):
+        self.stop.set()
+        if self.server is not None:
+            self.server.shutdown()
+            self.server.server_close()
+            self.server = None
+        if self.monitor is not None:
+            self.monitor.join(timeout=2)
+        self.history.close()
+
+    def status(self):
+        from control import safe_action
+        with self.lock:
+            snapshot = dict(self.cache['snapshot'])
+            management = dict(self.cache['management'])
+            supervisor = {'independent': True, 'worker_responsive': self.responsive,
+                          'status_available': self.status_available,
+                          'last_seen_at': self.last_seen, 'stale_seconds': round(max(0, time.monotonic() - self.last_seen_mono), 1) if self.last_seen else None,
+                          'failures': self.failures, 'watchdog_enabled': self.values['PROXY_WATCHDOG'],
+                          'watchdog_restart_limit': 3, 'panel_port': self.port}
+        management['last_action'] = safe_action(self.root)
+        management['restart_supported'] = True
+        management['history'] = {**self.history.snapshot(), **management.get('history', {})}
+        management['independent_panel_url'] = f'http://127.0.0.1:{self.port}/'
+        return {'snapshot': snapshot, 'management': management, 'supervisor': supervisor}
+
+    def read_history(self, action, query):
+        from control import ControlError
+        kind = action[len('history/'):]
+        try:
+            if kind == 'requests':
+                parameters = parse_qs(query, keep_blank_values=True, max_num_fields=3)
+                if any(key not in ('before', 'outcome', 'limit') or len(value) != 1 for key, value in parameters.items()):
+                    raise ValueError()
+                limit = int(parameters.get('limit', ['50'])[0])
+                before = int(parameters['before'][0]) if 'before' in parameters else None
+                if not 1 <= limit <= 100 or (before is not None and not 1 <= before < 2**63):
+                    raise ValueError()
+                return self.history.requests(limit=limit, before=before, outcome=parameters.get('outcome', [None])[0]), None
+            if kind in ('metrics', 'events', 'reports'):
+                return getattr(self.history, kind)(), None
+            if kind.startswith('report/'):
+                identifier = kind[len('report/'):]
+                if not identifier.isdigit() or len(identifier) > 18:
+                    raise ValueError()
+                report = self.history.saved_report(int(identifier))
+                if report is None:
+                    raise ControlError('history_report_unavailable', 404)
+                return report, 'attachment; filename="proxy-auto-report-' + identifier + '.json"'
+            raise ControlError('unknown_history_route', 404)
+        except (ValueError, OverflowError):
+            raise ControlError('invalid_history_filter') from None
+
+    def relay(self, action, body=None, retry_session=True):
+        from control import ControlError
+        try:
+            headers = {}
+            if body is not None:
+                with self.session_lock:
+                    if self.worker_token is None:
+                        with self.opener.open(self.base + 'session', timeout=1) as response:
+                            value = json.loads(response.read(65537))
+                        token = value.get('token')
+                        if not isinstance(token, str) or not 32 <= len(token) <= 128:
+                            raise ValueError()
+                        self.worker_token = token
+                    headers = {'Content-Type': 'application/json', 'X-Proxy-Control': self.worker_token,
+                               'Origin': self.base.split('/_control/', 1)[0], 'Sec-Fetch-Site': 'same-origin'}
+            request = urllib.request.Request(self.base + action, data=body, headers=headers)
+            try:
+                response = self.opener.open(request, timeout=90 if action.startswith('updates/') else 3)
+            except urllib.error.HTTPError as exc:
+                response = exc
+            with response:
+                value = response.read(1048577)
+                if len(value) > 1048576:
+                    raise ValueError()
+                # Only JSON from fixed local control routes may leave the relay.
+                json.loads(value)
+                if response.status == 403:
+                    with self.session_lock:
+                        self.worker_token = None
+                    if body is not None and retry_session:
+                        return self.relay(action, body, retry_session=False)
+                return response.status, value, response.headers.get('Content-Disposition')
+        except (OSError, ValueError, urllib.error.URLError):
+            raise ControlError('worker_unavailable', 503) from None
+
+    def recover(self, manual=False):
+        from control import ControlError, atomic_json, state_dir
+        with self.action_lock:
+            proc, updating = self.context()
+            if updating:
+                raise ControlError('update_busy', 409)
+            if proc is None or proc.poll() is not None:
+                if manual:
+                    self.recovery_requested.set()
+                    self.history.event('manual_recovery')
+                return {'accepted': True, 'state': 'restarting'}
+            path = state_dir(self.root) / 'control-command.json'
+            if path.exists():
+                raise ControlError('restart_already_pending', 409)
+            command = {'action': 'restart', 'token': self.supervisor_token, 'worker_pid': proc.pid,
+                       'id': secrets.token_hex(16), 'started_at': datetime.now(timezone.utc).isoformat()}
+            atomic_json(path, command)
+            self.history.event('manual_recovery' if manual else 'watchdog_restart', worker_pid=proc.pid, failures=self.failures)
+            return {'accepted': True, 'state': 'restarting', 'id': command['id']}
+
+    def _monitor(self):
+        from control import current_settings, load_settings, ControlError
+        while not self.stop.is_set():
+            now = time.monotonic()
+            proc, updating = self.context()
+            pid = proc.pid if proc is not None else None
+            if pid != self.worker_pid:
+                if self.worker_pid is not None:
+                    self.history.interrupt_worker(self.worker_pid)
+                with self.lock:
+                    self.worker_pid, self.worker_started = pid, now
+                    self.worker_token = None
+                    self.failures = 0
+                    self.responsive = False
+                if pid is not None:
+                    self.history.event('worker_started', worker_pid=pid)
+                try:
+                    self.values = {**current_settings(), **load_settings(self.root)[0]}
+                    self.history.hours = self.values['PROXY_HISTORY_HOURS']
+                    self.history.max_requests = self.values['PROXY_HISTORY_MAX_REQUESTS']
+                    self.history.enabled = self.values['PROXY_HISTORY_ENABLED']
+                    self.history.start()
+                except ControlError:
+                    pass
+            healthy = False
+            if proc is not None and proc.poll() is None:
+                try:
+                    with self.opener.open(self.base + 'status', timeout=1) as response:
+                        raw = response.read(131073)
+                    data = json.loads(raw) if len(raw) <= 131072 else None
+                    if (not isinstance(data, dict) or data.get('snapshot', {}).get('process_id') != pid
+                            or data['snapshot'].get('proxy') != 'agentrouter-codex-proxy'):
+                        raise ValueError()
+                    with self.lock:
+                        self.cache = data
+                        self.status_available = True
+                        self.responsive = healthy = True
+                        self.last_seen = datetime.now(timezone.utc).isoformat()
+                        self.last_seen_mono = time.monotonic()
+                        previous_failures = self.failures
+                        self.failures = 0
+                    if previous_failures:
+                        self.history.event('watchdog_recovered', failures=previous_failures, worker_pid=pid)
+                except (OSError, ValueError, urllib.error.URLError):
+                    with self.lock:
+                        self.responsive = self.status_available = False
+                    # An invalid settings file can make /status fail while
+                    # the request loop remains responsive. That is not a hang.
+                    try:
+                        with self.opener.open(self.base.replace('/_control/api/', '/_health'), timeout=.5) as response:
+                            raw = response.read(32769)
+                        health = json.loads(raw) if len(raw) <= 32768 else {}
+                        healthy = (health.get('proxy') == 'agentrouter-codex-proxy'
+                                   and health.get('status') == 'ok' and health.get('listen') == f'{self.host}:{self.worker_port}')
+                        if healthy:
+                            with self.lock:
+                                self.responsive = True
+                                self.failures = 0
+                    except (OSError, ValueError, urllib.error.URLError):
+                        pass
+            self._watchdog_tick(healthy, proc, updating, now)
+            self.stop.wait(2)
+
+    def _watchdog_tick(self, healthy, proc, updating, now):
+        from control import ControlError
+        if (healthy or proc is None or proc.poll() is not None or updating
+                or now - self.worker_started < 30 or now < self.next_watchdog):
+            return
+        self.next_watchdog = now + self.values['PROXY_WATCHDOG_INTERVAL_S']
+        with self.lock:
+            self.failures += 1
+        if self.failures == 1:
+            self.history.event('watchdog_unresponsive', worker_pid=proc.pid, failures=1)
+        if self.values['PROXY_WATCHDOG'] and self.failures >= self.values['PROXY_WATCHDOG_FAILURES']:
+            while self.restarts and self.restarts[0] < now - 600:
+                self.restarts.popleft()
+            if len(self.restarts) < 3:
+                try:
+                    self.recover()
+                    self.restarts.append(now)
+                    self.failures = 0
+                except (ControlError, OSError):
+                    pass
+            elif self.failures == self.values['PROXY_WATCHDOG_FAILURES']:
+                self.history.event('watchdog_suppressed', worker_pid=proc.pid, failures=self.failures)
+
+
 def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Headless background supervisor for AgentRouter Codex proxy.")
     parser.add_argument(
@@ -446,6 +877,21 @@ def main(argv: Optional[list[str]] = None) -> int:
         if startup_transaction['state'] == 'rolled_back':
             pending_control['action'].update(error_code='update_rolled_back',
                                              expected_version=startup_transaction.get('before_version'))
+
+    def panel_context():
+        with child_lock:
+            return active_child['proc'], pending_control['transaction'] is not None or (
+                pending_control['action'] is not None and pending_control['action'].get('action') == 'update')
+
+    try:
+        panel_port = int(os.environ.get('PROXY_PANEL_PORT', str(args.port + 1)))
+    except ValueError:
+        panel_port = args.port + 1
+    independent_panel = IndependentPanel(ROOT, args.port, args.host, supervisor_token,
+                                         panel_context, logger, panel_port=panel_port)
+    independent_panel.start()
+    if independent_panel.server is not None:
+        os.environ['PROXY_PANEL_PORT'] = str(panel_port)
 
     def handle_signal(_signum: int, _frame: Any) -> None:
         stop_event.set()
@@ -584,6 +1030,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                 with child_lock:
                     _stop_child(proc)
                     active_child["proc"] = None
+                independent_panel.history.interrupt_worker(proc.pid)
                 output_thread.join(timeout=1)
 
             if stop_event.is_set() or restart_for_update.is_set():
@@ -627,10 +1074,14 @@ def main(argv: Optional[list[str]] = None) -> int:
                         # Start the new supervisor once; it owns the health
                         # check and starts a single, initially paused worker.
                         try:
+                            independent_panel.close()
                             _respawn_self(args)
                         except OSError:
                             os.environ.pop('PROXY_UPDATE_HANDOFF', None)
                             update_guard.rollback_update(ROOT, transaction)
+                            independent_panel = IndependentPanel(ROOT, args.port, args.host, supervisor_token,
+                                                                 panel_context, logger, panel_port=panel_port)
+                            independent_panel.start()
                             raise
                         return 0
                     except update_guard.RollbackError:
@@ -659,6 +1110,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             code = proc.returncode if proc.returncode is not None else "unknown"
             ran_for = time.monotonic() - started_at
             logger.write("warn ", f"uvicorn exited with code {code} after {ran_for:.0f}s")
+            independent_panel.history.event('worker_exit', worker_pid=proc.pid,
+                                             status=proc.returncode or 0, duration_s=ran_for)
 
             if _is_port_busy(args.port, args.host):
                 logger.write("fail ", f"port {args.port} occupied while restarting -- stopping")
@@ -671,8 +1124,15 @@ def main(argv: Optional[list[str]] = None) -> int:
                 rapid_failures += 1
 
             if rapid_failures >= 10:
-                logger.write("fail ", f"uvicorn failed {rapid_failures} times rapidly -- exiting")
-                return 1
+                logger.write("fail ", f"uvicorn failed {rapid_failures} times rapidly -- waiting for browser recovery")
+                if independent_panel.server is None:
+                    return 1
+                while not stop_event.is_set() and not restart_for_update.is_set():
+                    if independent_panel.recovery_requested.wait(0.25):
+                        independent_panel.recovery_requested.clear()
+                        rapid_failures, backoff = 0, 5
+                        break
+                continue
 
             logger.write("warn ", f"restarting in {backoff}s (rapid failures: {rapid_failures})")
             if stop_event.wait(backoff):
@@ -681,11 +1141,13 @@ def main(argv: Optional[list[str]] = None) -> int:
 
         if restart_for_update.is_set() and not stop_event.is_set():
             _remove_pid_file(pid_path)
+            independent_panel.close()
             _respawn_self(args)
             return 0
         return 0
     finally:
         stop_event.set()
+        independent_panel.close()
         with child_lock:
             _stop_child(active_child["proc"])
         _remove_pid_file(pid_path)

@@ -1,5 +1,7 @@
 # Runtime settings and measured results
 
+Version 1.9.0 adds [independent management, bounded history and lower-memory payload transforms](resilience-1.9.0.md). Open the supervisor panel on `http://127.0.0.1:8789/`; API calls still use 8788. Thirty browser settings cover history retention, incident capture and watchdog timing as well as existing transport tuning. The default SSE queue is now 256 KiB; existing explicit `.env` or browser values continue to take precedence.
+
 Version 1.8.0 moves routine management to the [browser panel](browser-control-1.8.0.md): overview, temporary profiling/report export, 23 tuning values, pause/resume, graceful restart and compatible package updates. Browser overrides are saved separately from `.env` and apply after a restart. A receive listener now covers Responses quota waits, sends and body reads, replacing upstream-send polling while preserving the prior compression policy.
 
 Version 1.7.0 adds fair cancellable quota launches, generation-fenced cooldown recovery, elapsed quota waiting and temporary profiling. Use [the diagnostic CLI](diagnostics.md) to watch queues or capture a timing window. PROXY_TIMINGS=0 is the default fast mode; 1 enables persistent capture after restart. Authoritative hints can exceed generated backoff; a request's wait budget never shortens other callers' cooldown.
@@ -25,11 +27,18 @@ Edit the allowlisted tuning values in the browser's **Settings** section, save a
 | `PROXY_GZIP_REJECT_TTL_S` | `60` | Skip proxy-added gzip briefly for the same upstream/key/project/organization after HTTP 415. `0` disables this hint. |
 | `PROXY_GZIP_UPLOAD_MBIT_S` | `0` | Learn a conservative rate hint from real large plain requests; a positive value supplies an explicit Mbit/s rate. |
 | `PROXY_GZIP_COST_MARGIN` | `2` | Require estimated upload savings to exceed profiled compression cost by this factor. |
-| `PROXY_SSE_BUFFER_BYTES` | `1048576` | Queue budget, rounded down to whole 64 KiB pieces, with a minimum of one piece. |
+| `PROXY_SSE_BUFFER_BYTES` | `262144` | Queue budget, rounded down to whole 64 KiB pieces, with a minimum of one piece. |
 | `PROXY_SSE_PRIME_BYTES` | `262144` | Bound initial SSE inspection; one incoming piece may cross this threshold. |
 | `PROXY_SSE_PRIME_FRAMES` | `1024` | Bound allocations for many tiny setup/comment frames. |
 | `PROXY_RATE_LIMIT_SCOPE` | `credential` | A 429 pauses callers sharing a key. `shared` coordinates different keys drawing on one quota. |
 | `PROXY_RATE_LIMIT_PARTITIONS` | `256` | Maximum cached credential gates; active/cooling gates are protected from eviction. |
+| `PROXY_HISTORY_ENABLED` | `1` | Record bounded local metadata; disabling leaves old records readable. |
+| `PROXY_HISTORY_MAX_REQUESTS` | `2000` | Retained requests, configurable from 100 to 10000. |
+| `PROXY_HISTORY_HOURS` | `24` | Retention window, configurable from 1 to 168 hours. |
+| `PROXY_AUTO_DIAGNOSTICS` | `1` | One-minute capture after three final errors within a minute, with five-minute cooldown. |
+| `PROXY_WATCHDOG` | `1` | Supervisor recovery of an unresponsive owned worker. |
+| `PROXY_WATCHDOG_INTERVAL_S` | `10` | Spacing of failed watchdog checks, from 5 to 60 seconds. |
+| `PROXY_WATCHDOG_FAILURES` | `3` | Consecutive failed checks before recovery, from 3 to 12. |
 
 Gzip rejection and upload-hint caches each hold at most 256 entries. Compression cost profiles hold at most 128 entries. Upload/CPU hints expire after 120 seconds; upload estimates require at least two real observations and use the slowest recent sample. The measured interval includes upstream work and RTT, so it deliberately underestimates throughput. Calibration generates no additional requests.
 

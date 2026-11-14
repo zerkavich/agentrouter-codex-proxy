@@ -1,5 +1,7 @@
 # Runtime diagnosis and temporary profiling
 
+In 1.9.0, the independent browser panel on **http://127.0.0.1:8789/** adds request metadata, retained daily metrics and recovery events. Three final errors within a minute can start a one-minute profile and save a sanitized report automatically. Request/response contents and credentials are excluded. The legacy CLI and its aggregate reports remain compatible; see [history, memory and recovery](resilience-1.9.0.md).
+
 Version 1.7.0 adds live status, accurate quota waiting counters and optional timing capture. Status, watch and export do not load credentials or contact the model provider. Detailed timing is off by default; normal requests install no HTTPcore trace callbacks.
 
 Run from the checkout or installed app directory:
@@ -38,7 +40,7 @@ Watch shows differences between samples and detects process/counter resets. Find
 
 ## Timing definitions
 
-Capture uses 14 fixed histograms with 21 buckets each. No per-request history, prompts, outputs or headers are retained. Count includes completed intervals, including failed/cancelled operations; active counts captured intervals still in progress.
+Timing capture uses 14 fixed histograms with 21 buckets each. These aggregates contain no individual requests, prompts, outputs or headers. The separate bounded history introduced in 1.9.0 retains numeric request metadata only. Count includes completed intervals, including failed/cancelled operations; active counts captured intervals still in progress.
 
 | Stage | Interval |
 | --- | --- |

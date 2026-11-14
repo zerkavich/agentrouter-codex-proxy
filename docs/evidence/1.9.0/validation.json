@@ -1,0 +1,399 @@
+{
+  "status": "passed",
+  "version": "1.9.0",
+  "published_at": "2026-11-14T15:30:17.758870+00:00",
+  "baseline_commit": "333078e452a21ca951e201b1c51bf1f43ac0bad1",
+  "runtime_sha256_lf": {
+    "proxy.py": "a12dd374017212a3fa7873fbe61ff355543be8f94b558264a229facd3365fbea",
+    "telemetry.py": "df68803c6ca12a3503a79fef572a15f0888a48556c2566f92c244d9df707b67f",
+    "control.py": "1ed5bab66d20e74f0328559417a3945c7a8d60bd8103d7ceb3c992db9e44925f",
+    "panel_updates.py": "21d448dfbebfdc68b1d30fd6e3b249b818c8351e845860d51b7088de7ad0f992",
+    "service.py": "95510c61ed47e839fdccae4a7255fb413db7ff890fac2fb314bf501cb8f2e4ef",
+    "updater.py": "d23aade721da00ccb4cd6db3347aca96e9435331698f6f60f12627182c5b4ff8",
+    "doctor.py": "ab503763e7aa3bf2af743b91c3c3d15ec1818a5619525abd455bd418286d714b",
+    "diagnose.ps1": "c7ca18afd4d9bc156073f077dfad6ef0c0d4ee830e77da5f0bf315eaf3b1945b",
+    "requirements.txt": "5ea3e96cdc526171cba6944628735e890af313c33d93e8dd94a93192a248373e",
+    "panel/index.html": "c93e9a7230a15c9158747e3d78306fb9814472091890533e37062f10bc23c196",
+    "panel/panel.js": "c02133036e7aa8654f52c59c9b54cf03c064c4d691be75be3fdbd116e59188d7",
+    "panel/panel.css": "6de64d3a62f401297b1120d50e40c8904d76331ad0a133fffc928d2d7ad5d610",
+    "panel/mark.svg": "276b9070bd4a784503ba0d945bd4e5ff9f045bfd3bda6af8277ec4ed47fa9f23",
+    "update_guard.py": "7c00f87e2c50b8d9d95af096ced6d731d332f417e4578911bd83c12260602151",
+    "machine_service.py": "9b9ef0e17f06e0d899e8c04394dc1e06f55a4c887b799927be88793331596038"
+  },
+  "tested_windows_runtime_sha256": {
+    "proxy.py": "aad87079803c15e6294e07d073fa7ccb7db26c787d4446461607ce598a0633c9",
+    "telemetry.py": "230be51c625333e300778d3d6f447f1cc3cf751a1eb2f006bec10a365d4b66b3",
+    "control.py": "731ef58f2e3d2b6f68333c41dd574ac36cea867817b33888c8f4ba8860fce140",
+    "panel_updates.py": "1fdaba97ccf30ca0a041c1671a20c0653993d3e304f69ccfb3c795065188e240",
+    "service.py": "6d9104ca1ded0bb608c563fb5e9443175f1993cc5a167cb1cb239c7e53a7471b",
+    "updater.py": "a9d12fdd9db3316c02256057913a96b6e007d79d9e1725e80264bd159849ca81",
+    "doctor.py": "3911beb50b861de4c0040f26a60ead1b1f16ae935b6d09bb2112eeceadf29401",
+    "diagnose.ps1": "4f921f3df028d314a35a298ae6d89ce177de33428c0f21209b29d7de069b70c0",
+    "requirements.txt": "7bbb92da4cbaed2e5e1e4fc6e99a91b5847239ae4011f6f79e21764eeee754e9",
+    "panel/index.html": "c93e9a7230a15c9158747e3d78306fb9814472091890533e37062f10bc23c196",
+    "panel/panel.js": "c02133036e7aa8654f52c59c9b54cf03c064c4d691be75be3fdbd116e59188d7",
+    "panel/panel.css": "6de64d3a62f401297b1120d50e40c8904d76331ad0a133fffc928d2d7ad5d610",
+    "panel/mark.svg": "276b9070bd4a784503ba0d945bd4e5ff9f045bfd3bda6af8277ec4ed47fa9f23",
+    "update_guard.py": "5d3b3fb3ed20e4d6db70fb6d4f2b3bdf5cd3f2524eacb14dc2c8aa7ba30c869f",
+    "machine_service.py": "709d9106753c0cd21b4b0ff35bcb3ba6e51e890619abb699b05a7fac6ae1d997"
+  },
+  "hash_note": "Git sources use LF; some tested Windows files use CRLF. Only CRLF is normalized in runtime_sha256_lf.",
+  "real_provider_calls": 0,
+  "regressions": [
+    {
+      "environment": "Windows portable Python 3.12.6",
+      "tests_run": 197,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "success": true,
+      "runtime_unchanged": true,
+      "packages": {
+        "httpx": "0.28.1",
+        "httpcore": "1.0.9",
+        "fastapi": "0.115.6",
+        "isal": "1.9.1",
+        "httptools": "0.9.0"
+      }
+    },
+    {
+      "environment": "Windows Python 3.12.6",
+      "tests_run": 197,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "success": true,
+      "runtime_unchanged": true,
+      "packages": {
+        "httpx": "0.28.1",
+        "httpcore": "1.0.9",
+        "fastapi": "0.115.6",
+        "isal": "1.9.1",
+        "httptools": "0.9.0"
+      }
+    },
+    {
+      "environment": "Windows Python 3.10.11",
+      "tests_run": 197,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "success": true,
+      "runtime_unchanged": true,
+      "packages": {
+        "httpx": "0.28.1",
+        "httpcore": "1.0.9",
+        "fastapi": "0.115.6",
+        "isal": "1.9.1",
+        "httptools": "0.9.0"
+      }
+    }
+  ],
+  "resilience": {
+    "status": "passed",
+    "checks": [
+      "real-supervisor-custom-panel-port",
+      "slow-provider-no-watchdog-restart",
+      "real-errors-auto-profile-saved",
+      "automatic-report-sanitized",
+      "suspended-worker-auto-recovery",
+      "independent-panel-remains-accessible",
+      "crash-active-history-interrupted",
+      "browser-manual-recovery-with-confirmation",
+      "history-settings-env-preserved-through-restarts"
+    ],
+    "responsive_provider_seconds": 42.55,
+    "automatic_recovery_seconds": 29.69,
+    "manual_recovery_seconds": 8.95,
+    "settings_restored": true,
+    "env_unchanged": true,
+    "worker_rss_bytes": 62685184,
+    "supervisor_rss_bytes": 46632960,
+    "synthetic_requests": 118,
+    "browser": [
+      {
+        "status": "passed",
+        "phase": "normal",
+        "controls": [
+          "five-russian-sections",
+          "five-english-sections-no-russian",
+          "language-reload-persistence",
+          "english-cleanup-state-caption",
+          "history-cursor-pages-50",
+          "history-outcome-filter",
+          "daily-metrics",
+          "saved-auto-report-download",
+          "clear-confirmation-cancel",
+          "history-polling-stops-on-navigation",
+          "profile-start-stop-en",
+          "english-settings-save-restart-restore",
+          "pause-resume-confirmation-en",
+          "all-five-mobile-sections"
+        ],
+        "errors": [],
+        "consoles": [],
+        "externalRequests": [],
+        "providerCalls": 0
+      },
+      {
+        "status": "passed",
+        "phase": "offline-auto",
+        "controls": [
+          "offline-panel-assets-status-history",
+          "watchdog-recovered"
+        ],
+        "errors": [],
+        "consoles": [],
+        "externalRequests": [],
+        "providerCalls": 0
+      },
+      {
+        "status": "passed",
+        "phase": "manual",
+        "controls": [
+          "manual-recovery-cancel-confirm",
+          "offline-panel-assets-status-history",
+          "manual-recovered"
+        ],
+        "errors": [],
+        "consoles": [],
+        "externalRequests": [],
+        "providerCalls": 0
+      }
+    ]
+  },
+  "managed_updates": [
+    {
+      "mode": "success",
+      "status": "passed",
+      "elapsed_s": 20.656,
+      "env_unchanged": true,
+      "settings_unchanged": true,
+      "final_version": "1.9.1",
+      "action_state": "verified"
+    },
+    {
+      "mode": "early-worker-exit",
+      "status": "passed",
+      "elapsed_s": 21.579,
+      "env_unchanged": true,
+      "settings_unchanged": true,
+      "final_version": "1.9.0",
+      "action_state": "rolled_back"
+    },
+    {
+      "mode": "cold-supervisor-import",
+      "status": "passed",
+      "elapsed_s": 23.906,
+      "env_unchanged": true,
+      "settings_unchanged": true,
+      "final_version": "1.9.0",
+      "action_state": "rolled_back"
+    },
+    {
+      "mode": "health-timeout",
+      "status": "passed",
+      "elapsed_s": 47.188,
+      "env_unchanged": true,
+      "settings_unchanged": true,
+      "final_version": "1.9.0",
+      "action_state": "rolled_back"
+    }
+  ],
+  "endurance": {
+    "status": "passed",
+    "elapsed_seconds": 901.875,
+    "target_duration_seconds": 900.0,
+    "counts": {
+      "compression_bursts": 8,
+      "profiling_windows": 15,
+      "successful_calls": 9356,
+      "normal": 3545,
+      "json": 1732,
+      "comments": 433,
+      "expected_cancellations": 5382,
+      "cancel_prime": 433,
+      "cancel_json": 433,
+      "cancel_headers": 433,
+      "cancel_upload": 433,
+      "large": 1732,
+      "cancel_stream": 433,
+      "mismatch": 433,
+      "noise": 433,
+      "burst": 512,
+      "quota": 73,
+      "reset": 15,
+      "no_gzip": 433,
+      "server_error": 15,
+      "slow": 145,
+      "cycles": 433,
+      "cancel_header_burst_requests": 3072,
+      "cancel_header_bursts": 8
+    },
+    "memory": {
+      "rss_peak_bytes": 143818752,
+      "private_peak_bytes": 129134592,
+      "thread_peak": 13,
+      "samples": 891
+    },
+    "latency_ms": {
+      "normal": {
+        "samples": 3545,
+        "median": 133.82150000052206,
+        "p95": 350.5098999994516
+      },
+      "json": {
+        "samples": 1732,
+        "median": 179.080150000118,
+        "p95": 401.3366999997743
+      },
+      "comments": {
+        "samples": 433,
+        "median": 163.837500000227,
+        "p95": 359.0670000003229
+      },
+      "large": {
+        "samples": 1732,
+        "median": 195.05440000057206,
+        "p95": 439.30399999953806
+      },
+      "mismatch": {
+        "samples": 433,
+        "median": 183.07610000010754,
+        "p95": 412.06490000058693
+      },
+      "noise": {
+        "samples": 433,
+        "median": 188.54499999997643,
+        "p95": 432.0047999999588
+      },
+      "burst": {
+        "samples": 512,
+        "median": 990.6489500003772,
+        "p95": 3161.6770000000542
+      },
+      "quota": {
+        "samples": 73,
+        "median": 279.6895000001314,
+        "p95": 1316.6475999996692
+      },
+      "reset": {
+        "samples": 15,
+        "median": 1237.0580999995582,
+        "p95": 3604.104300000472
+      },
+      "no_gzip": {
+        "samples": 433,
+        "median": 179.22859999998764,
+        "p95": 399.0907999996125
+      },
+      "server_error": {
+        "samples": 15,
+        "median": 1562.5295999998343,
+        "p95": 3609.4967999997607
+      }
+    },
+    "source_unchanged": true,
+    "telemetry_unchanged": true,
+    "runtime_unchanged": true,
+    "real_model_calls": 0,
+    "final_resources_idle": true,
+    "history_storage": {
+      "status": "passed",
+      "checked_at": "2026-11-14T15:26:39.238293+00:00",
+      "integrity": "ok",
+      "schema_version": 2,
+      "rows": {
+        "requests": 2000,
+        "metrics": 15,
+        "events": 0,
+        "reports": 0
+      },
+      "outcomes": {
+        "cancelled": 663,
+        "success": 1337
+      },
+      "page_count": 101,
+      "page_size": 4096,
+      "database_bytes": 409600,
+      "wal_bytes": 1048576
+    },
+    "history_dropped_records": 1600,
+    "history_write_errors": 0,
+    "history_active_rows": 0,
+    "history_pending_tasks": 0,
+    "tested_runtime_sha256": {
+      "proxy.py": "aad87079803c15e6294e07d073fa7ccb7db26c787d4446461607ce598a0633c9",
+      "telemetry.py": "230be51c625333e300778d3d6f447f1cc3cf751a1eb2f006bec10a365d4b66b3",
+      "control.py": "731ef58f2e3d2b6f68333c41dd574ac36cea867817b33888c8f4ba8860fce140",
+      "panel_updates.py": "1fdaba97ccf30ca0a041c1671a20c0653993d3e304f69ccfb3c795065188e240",
+      "service.py": "6d9104ca1ded0bb608c563fb5e9443175f1993cc5a167cb1cb239c7e53a7471b",
+      "updater.py": "a9d12fdd9db3316c02256057913a96b6e007d79d9e1725e80264bd159849ca81",
+      "doctor.py": "3911beb50b861de4c0040f26a60ead1b1f16ae935b6d09bb2112eeceadf29401",
+      "diagnose.ps1": "4f921f3df028d314a35a298ae6d89ce177de33428c0f21209b29d7de069b70c0",
+      "requirements.txt": "7bbb92da4cbaed2e5e1e4fc6e99a91b5847239ae4011f6f79e21764eeee754e9",
+      "panel/index.html": "c93e9a7230a15c9158747e3d78306fb9814472091890533e37062f10bc23c196",
+      "panel/panel.js": "eb3ecd7113d0ae00d3b2e5dfc0fb40014deba5e42b7c927280a8efe3fef9bd8d",
+      "panel/panel.css": "6de64d3a62f401297b1120d50e40c8904d76331ad0a133fffc928d2d7ad5d610",
+      "panel/mark.svg": "276b9070bd4a784503ba0d945bd4e5ff9f045bfd3bda6af8277ec4ed47fa9f23",
+      "update_guard.py": "5d3b3fb3ed20e4d6db70fb6d4f2b3bdf5cd3f2524eacb14dc2c8aa7ba30c869f",
+      "machine_service.py": "709d9106753c0cd21b4b0ff35bcb3ba6e51e890619abb699b05a7fac6ae1d997"
+    },
+    "server_runtime_matches_release": true,
+    "panel_assets_exercised": false
+  },
+  "aggressive_history_queue_flood": {
+    "status": "passed",
+    "elapsed_seconds": 63.04600000000028,
+    "counts": {
+      "compression_bursts": 22,
+      "profiling_windows": 1,
+      "successful_calls": 1880,
+      "normal": 202,
+      "expected_cancellations": 8566,
+      "cancel_json": 22,
+      "cancel_prime": 22,
+      "cancel_upload": 22,
+      "cancel_headers": 22,
+      "json": 88,
+      "comments": 22,
+      "cancel_stream": 22,
+      "large": 88,
+      "noise": 22,
+      "mismatch": 22,
+      "burst": 1408,
+      "quota": 4,
+      "no_gzip": 22,
+      "reset": 1,
+      "server_error": 1,
+      "slow": 8,
+      "cycles": 22,
+      "cancel_header_burst_requests": 8448,
+      "cancel_header_bursts": 22
+    },
+    "runtime_unchanged": true,
+    "active_handlers": 0,
+    "active_history_rows": 0,
+    "dropped_records": 4632,
+    "write_errors": 0,
+    "tested_runtime_sha256": {
+      "proxy.py": "aad87079803c15e6294e07d073fa7ccb7db26c787d4446461607ce598a0633c9",
+      "telemetry.py": "230be51c625333e300778d3d6f447f1cc3cf751a1eb2f006bec10a365d4b66b3",
+      "control.py": "731ef58f2e3d2b6f68333c41dd574ac36cea867817b33888c8f4ba8860fce140",
+      "panel_updates.py": "1fdaba97ccf30ca0a041c1671a20c0653993d3e304f69ccfb3c795065188e240",
+      "service.py": "6d9104ca1ded0bb608c563fb5e9443175f1993cc5a167cb1cb239c7e53a7471b",
+      "updater.py": "a9d12fdd9db3316c02256057913a96b6e007d79d9e1725e80264bd159849ca81",
+      "doctor.py": "3911beb50b861de4c0040f26a60ead1b1f16ae935b6d09bb2112eeceadf29401",
+      "diagnose.ps1": "4f921f3df028d314a35a298ae6d89ce177de33428c0f21209b29d7de069b70c0",
+      "requirements.txt": "7bbb92da4cbaed2e5e1e4fc6e99a91b5847239ae4011f6f79e21764eeee754e9",
+      "panel/index.html": "c93e9a7230a15c9158747e3d78306fb9814472091890533e37062f10bc23c196",
+      "panel/panel.js": "eb3ecd7113d0ae00d3b2e5dfc0fb40014deba5e42b7c927280a8efe3fef9bd8d",
+      "panel/panel.css": "6de64d3a62f401297b1120d50e40c8904d76331ad0a133fffc928d2d7ad5d610",
+      "panel/mark.svg": "276b9070bd4a784503ba0d945bd4e5ff9f045bfd3bda6af8277ec4ed47fa9f23",
+      "update_guard.py": "5d3b3fb3ed20e4d6db70fb6d4f2b3bdf5cd3f2524eacb14dc2c8aa7ba30c869f",
+      "machine_service.py": "709d9106753c0cd21b4b0ff35bcb3ba6e51e890619abb699b05a7fac6ae1d997"
+    },
+    "server_runtime_matches_release": true,
+    "panel_assets_exercised": false
+  }
+}

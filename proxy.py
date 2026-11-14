@@ -28,7 +28,6 @@ import asyncio
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
-import copy
 import gzip
 from functools import partial
 import hashlib
@@ -60,7 +59,7 @@ from starlette.requests import ClientDisconnect
 _APP_ROOT = str(Path(__file__).resolve().parent)
 if _APP_ROOT not in sys.path:
     sys.path.insert(0, _APP_ROOT)
-from telemetry import RuntimeTimings
+from telemetry import RuntimeTimings, REQUEST_RECORD, note_stream_error
 from control import ControlRuntime, attach_control, apply_saved_settings
 
 try:
@@ -322,7 +321,7 @@ REQUEST_GZIP_UPLOAD_MBIT_S = max(0.0, float(os.environ.get("PROXY_GZIP_UPLOAD_MB
 REQUEST_GZIP_COST_MARGIN = max(1.0, float(os.environ.get("PROXY_GZIP_COST_MARGIN", "2")))
 GZIP_PROFILE_TTL_S = 120.0
 SSE_CHUNK_MAX_BYTES = 65536
-SSE_BUFFER_MAX_BYTES = max(SSE_CHUNK_MAX_BYTES, int(os.environ.get("PROXY_SSE_BUFFER_BYTES", "1048576")))
+SSE_BUFFER_MAX_BYTES = max(SSE_CHUNK_MAX_BYTES, int(os.environ.get("PROXY_SSE_BUFFER_BYTES", "262144")))
 SSE_PRIME_MAX_BYTES = max(SSE_CHUNK_MAX_BYTES, int(os.environ.get("PROXY_SSE_PRIME_BYTES", "262144")))
 SSE_PRIME_MAX_FRAMES = max(1, int(os.environ.get("PROXY_SSE_PRIME_FRAMES", "1024")))
 RATE_LIMIT_SCOPE = os.environ.get("PROXY_RATE_LIMIT_SCOPE", "credential").lower()
@@ -331,7 +330,7 @@ if RATE_LIMIT_SCOPE not in ("credential", "shared"):
 RATE_LIMIT_MAX_PARTITIONS = max(1, int(os.environ.get("PROXY_RATE_LIMIT_PARTITIONS", "256")))
 TIMINGS = RuntimeTimings(os.environ.get("PROXY_TIMINGS", "0").lower() not in ("0", "", "false"))
 _STARTED_MONOTONIC = time.monotonic()
-VERSION = "1.8.0"
+VERSION = "1.9.0"
 _PROFILE_HASH_KEY = os.urandom(32)
 
 CLIENT_TIMEOUT = httpx.Timeout(
@@ -435,48 +434,70 @@ def prune_excess_images(payload: dict, max_images: int = MAX_IMAGES_PER_REQUEST)
     if not isinstance(raw_input, list):
         return payload, 0
 
-    image_refs = []  # list of (kind, item_idx, field, part_idx)
-    for item_idx, item in enumerate(raw_input):
+    # Count first without retaining a second list of all image references.
+    total_images = 0
+    for item in raw_input:
         if not isinstance(item, dict):
             continue
 
         # Check top-level item
         t = str(item.get("type", "")).lower()
         if t in ("input_image", "computer_screenshot"):
-            image_refs.append(("top", item_idx, None, None))
+            total_images += 1
             continue
 
         # Check content and output fields
         for field in ("content", "output"):
             parts = item.get(field)
             if isinstance(parts, list):
-                for part_idx, part in enumerate(parts):
+                for part in parts:
                     if is_image_part(part):
-                        image_refs.append(("part", item_idx, field, part_idx))
+                        total_images += 1
 
-    total_images = len(image_refs)
     if total_images <= max_images:
         return payload, 0
 
-    clean_data = copy.deepcopy(payload)
+    # Copy only containers that actually change. Images and large tool outputs
+    # that survive pruning remain shared, immutable input to the serializer.
+    clean_data = dict(payload)
+    clean_input = list(raw_input)
+    clean_data['input'] = clean_input
     to_prune = total_images - max_images
-    for i in range(to_prune):
-        ref = image_refs[i]
-        kind = ref[0]
-        item_idx = ref[1]
-        if kind == "top":
-            clean_data["input"][item_idx] = {
+    remaining = to_prune
+    for item_idx, item in enumerate(raw_input):
+        if not remaining:
+            break
+        if not isinstance(item, dict):
+            continue
+        if str(item.get('type', '')).lower() in ('input_image', 'computer_screenshot'):
+            clean_input[item_idx] = {
                 "type": "message",
                 "role": "user",
                 "content": [{"type": "input_text", "text": "[Historical screenshot omitted: turn exceeded 50-image limit]"}]
             }
+            remaining -= 1
         else:
-            field = ref[2]
-            part_idx = ref[3]
-            clean_data["input"][item_idx][field][part_idx] = {
-                "type": "input_text",
-                "text": "[Historical screenshot omitted: turn exceeded 50-image limit]"
-            }
+            copied_item = None
+            for field in ('content', 'output'):
+                parts = item.get(field)
+                if not isinstance(parts, list):
+                    continue
+                copied_parts = None
+                for part_idx, part in enumerate(parts):
+                    if not remaining:
+                        break
+                    if is_image_part(part):
+                        if copied_item is None:
+                            copied_item = dict(item)
+                            clean_input[item_idx] = copied_item
+                        if copied_parts is None:
+                            copied_parts = list(parts)
+                            copied_item[field] = copied_parts
+                        copied_parts[part_idx] = {
+                            'type': 'input_text',
+                            'text': '[Historical screenshot omitted: turn exceeded 50-image limit]'
+                        }
+                        remaining -= 1
 
     return clean_data, to_prune
 
@@ -986,7 +1007,7 @@ def sanitize_responses_payload(payload: dict) -> dict:
     payload that ANY upstream Azure OpenAI / OpenAI resource can process.
     Also prunes accumulated images to safely fit under the 50-image ceiling.
     """
-    clean_data = copy.deepcopy(payload)
+    clean_data = dict(payload)
 
     # 1. Remove all server-side session pointers
     for state_key in ("previous_response_id", "response_id", "parent_id", "parent_response_id"):
@@ -1140,6 +1161,7 @@ async def _app_lifespan(_: FastAPI):
             get_shared_client()
             if REQUEST_GZIP_ENABLED:
                 _get_gzip_pool()
+        await CONTROL.start()
         yield
     finally:
         global _SHARED_CLIENT, _GZIP_POOL
@@ -1682,6 +1704,78 @@ async def _prime_responses_sse(
         return await abort_result("retry_transient", type(exc).__name__, str(exc))
 
 
+_SSE_LINE_BREAK_RE = re.compile(rb"\r\n|\r|\n")
+
+
+class _SSEOutcomeTracker:
+    """Inspect only bounded SSE line prefixes; never retain response bodies.
+
+    Event headers take effect at a complete frame containing a data field.
+    A clean HTTP EOF without a terminal event is not proof of an upstream error.
+    """
+    __slots__ = ('line', 'overlong', 'skip_lf', 'first_line', 'event', 'has_data',
+                 'completed', 'error_code')
+    PREFIX_LIMIT = 192
+
+    def __init__(self):
+        self.line = bytearray()
+        self.overlong = self.skip_lf = False
+        self.first_line = True
+        self.event = b''
+        self.has_data = self.completed = False
+        self.error_code = ''
+
+    def _append(self, chunk, start, end):
+        available = self.PREFIX_LIMIT - len(self.line)
+        length = end - start
+        if available > 0:
+            self.line.extend(chunk[start:start + min(length, available)])
+        if length > available:
+            self.overlong = True
+
+    def _finish_line(self):
+        line = self.line
+        if self.first_line:
+            if line.startswith(b'\xef\xbb\xbf'):
+                del line[:3]
+            self.first_line = False
+        if not line and not self.overlong:
+            if self.has_data:
+                if self.event == b'response.completed':
+                    self.completed = True
+                elif self.event in (b'error', b'response.failed'):
+                    self.error_code = 'upstream_response_failed'
+                elif self.event == b'response.incomplete' and not self.error_code:
+                    self.error_code = 'stream_incomplete'
+            self.event, self.has_data = b'', False
+        elif line == b'data' or line.startswith(b'data:'):
+            self.has_data = True
+        elif line == b'event' or line.startswith(b'event:'):
+            value = bytes(line[6:]) if line.startswith(b'event:') else b''
+            if value.startswith(b' '):
+                value = value[1:]
+            self.event = value if not self.overlong else b''
+        line.clear()
+        self.overlong = False
+
+    def feed(self, chunk):
+        start = 0
+        if self.skip_lf:
+            self.skip_lf = False
+            if chunk.startswith(b'\n'):
+                start = 1
+            elif not chunk:
+                self.skip_lf = True
+                return
+        for match in _SSE_LINE_BREAK_RE.finditer(chunk, start):
+            self._append(chunk, start, match.start())
+            self._finish_line()
+            start = match.end()
+            self.skip_lf = chunk[match.start()] == 13 and start == len(chunk)
+        if start < len(chunk):
+            self._append(chunk, start, len(chunk))
+
+
 async def _stream_generator(
     upstream_response: httpx.Response,
     *,
@@ -1701,17 +1795,18 @@ async def _stream_generator(
         producer_exc = []
         producer_task = asyncio.create_task(_sse_producer(upstream_response, queue, producer_exc))
 
-    last_event_seen = False
+    record = REQUEST_RECORD.get()
+    tracker = _SSEOutcomeTracker() if record is not None and record.endpoint == 'responses' else None
 
     try:
         for pre in primed_chunks or ():
             if pre:
-                if b"response.completed" in pre:
-                    last_event_seen = True
+                if tracker is not None:
+                    tracker.feed(pre)
                 yield pre
         if remainder:
-            if b"response.completed" in remainder:
-                last_event_seen = True
+            if tracker is not None:
+                tracker.feed(remainder)
             yield remainder
 
         while True:
@@ -1719,16 +1814,21 @@ async def _stream_generator(
                 chunk = await _next_sse_chunk(queue, ping_interval)
                 if chunk is None:
                     break
-                if b"response.completed" in chunk:
-                    last_event_seen = True
+                if tracker is not None:
+                    tracker.feed(chunk)
                 yield chunk
             except asyncio.TimeoutError:
                 yield b": ping\n\n"
     except Exception as exc:
+        note_stream_error('upstream_stream_error')
         logger.warning("[Stream Exception] Upstream SSE connection interrupted: %s", str(exc))
     finally:
         await _close_sse_producer(upstream_response, producer_task)
-        if not last_event_seen:
+        if producer_exc:
+            note_stream_error('upstream_stream_error')
+        elif tracker is not None and tracker.error_code:
+            note_stream_error(tracker.error_code)
+        if tracker is not None and not tracker.completed:
             logger.info("[Stream Finished] Upstream stream ended.")
 
 

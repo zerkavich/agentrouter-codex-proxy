@@ -1,0 +1,124 @@
+{
+  "status": "passed",
+  "captured_at": "2026-11-14T14:09:11.954463+00:00",
+  "python": "3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]",
+  "samples_per_case": 15,
+  "measurement": "Python transformation allocation peaks; not process RSS or API latency",
+  "provider_calls": 0,
+  "comparison": {
+    "image_pruning": {
+      "baseline_peak_bytes": 10601696,
+      "candidate_peak_bytes": 68516,
+      "peak_reduction_percent": 99.35
+    },
+    "stateless_recovery": {
+      "baseline_peak_bytes": 18986176,
+      "candidate_peak_bytes": 675065,
+      "peak_reduction_percent": 96.44
+    }
+  },
+  "raw_results": {
+    "baseline": {
+      "source_sha256": "c000a7e72af21ab2c325a5dd6a1ea554d18426be5c7c316816a7706d398b3e11",
+      "cases": {
+        "image_pruning": {
+          "median_peak_python_bytes": 10601696,
+          "maximum_peak_python_bytes": 10601696,
+          "samples": [
+            10601696,
+            10601696,
+            10601696,
+            10601696,
+            10601696,
+            10601696,
+            10601696,
+            10601696,
+            10601696,
+            10601696,
+            10601696,
+            10601696,
+            10601696,
+            10601696,
+            10601696
+          ],
+          "input_sha256": "5e81b34ef015c4817f6ee40d224fe7cfc97d6e39f26f92702e5954d90c01f507",
+          "output_sha256": "98b42e9305c63f079fd58161413f3914df566849d3a350b102c10e8dc9654c54"
+        },
+        "stateless_recovery": {
+          "median_peak_python_bytes": 18986176,
+          "maximum_peak_python_bytes": 18986176,
+          "samples": [
+            18986176,
+            18986176,
+            18986176,
+            18986176,
+            18986176,
+            18986176,
+            18986176,
+            18986176,
+            18986176,
+            18986176,
+            18986176,
+            18986176,
+            18986176,
+            18986176,
+            18986176
+          ],
+          "input_sha256": "19c779d561b541536168f9c19e0466d80e5339d58f9f77a083a50004e776dbaf",
+          "output_sha256": "6f7c703233aea47d3fffbeb6b7ad9b9375dcd92a46365f1be1d0b56ae6469426"
+        }
+      }
+    },
+    "candidate": {
+      "source_sha256": "aad87079803c15e6294e07d073fa7ccb7db26c787d4446461607ce598a0633c9",
+      "cases": {
+        "image_pruning": {
+          "median_peak_python_bytes": 68516,
+          "maximum_peak_python_bytes": 68516,
+          "samples": [
+            68516,
+            68516,
+            68516,
+            68516,
+            68516,
+            68516,
+            68516,
+            68516,
+            68516,
+            68516,
+            68516,
+            68516,
+            68516,
+            68516,
+            68516
+          ],
+          "input_sha256": "5e81b34ef015c4817f6ee40d224fe7cfc97d6e39f26f92702e5954d90c01f507",
+          "output_sha256": "98b42e9305c63f079fd58161413f3914df566849d3a350b102c10e8dc9654c54"
+        },
+        "stateless_recovery": {
+          "median_peak_python_bytes": 675065,
+          "maximum_peak_python_bytes": 675065,
+          "samples": [
+            675065,
+            675065,
+            675065,
+            675065,
+            675065,
+            675065,
+            675065,
+            675065,
+            675065,
+            675065,
+            675065,
+            675065,
+            675065,
+            675065,
+            675065
+          ],
+          "input_sha256": "19c779d561b541536168f9c19e0466d80e5339d58f9f77a083a50004e776dbaf",
+          "output_sha256": "6f7c703233aea47d3fffbeb6b7ad9b9375dcd92a46365f1be1d0b56ae6469426"
+        }
+      }
+    }
+  }
+}
