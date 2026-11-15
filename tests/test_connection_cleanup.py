@@ -99,6 +99,59 @@ class ConnectionCleanupTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(response.is_closed)
         await self.assert_pool_available()
 
+    async def test_cancelling_producer_join_still_releases_pool_slot(self):
+        response = await self.open_response()
+        producer_started = asyncio.Event()
+        producer_cleanup_started = asyncio.Event()
+
+        async def producer():
+            try:
+                producer_started.set()
+                await asyncio.sleep(100)
+            finally:
+                producer_cleanup_started.set()
+                await asyncio.sleep(100)
+
+        producer_task = asyncio.create_task(producer())
+        await asyncio.wait_for(producer_started.wait(), timeout=2)
+        cleanup_task = asyncio.create_task(proxy._close_sse_producer(response, producer_task))
+        await asyncio.wait_for(producer_cleanup_started.wait(), timeout=2)
+        cleanup_task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await cleanup_task
+        self.assertTrue(producer_task.done())
+        self.assertTrue(response.is_closed)
+        await self.assert_pool_available()
+
+    async def test_broken_sse_transport_logs_its_type_and_redacts_tokens(self):
+        class BrokenStream(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield b'event: response.output_text.delta\ndata: {"delta":"hi"}\n\n'
+                raise httpx.ReadError("Bearer fake-token sk-abcdefghijklmno")
+
+        response = httpx.Response(200, stream=BrokenStream())
+        with self.assertLogs(proxy.logger, level="WARNING") as logs:
+            chunks = [chunk async for chunk in proxy._stream_generator(response)]
+        self.assertEqual(len(chunks), 1)
+        self.assertTrue(response.is_closed)
+        description = "\n".join(logs.output)
+        self.assertIn("ReadError", description)
+        self.assertNotIn("fake-token", description)
+        self.assertNotIn("sk-abcdefghijklmno", description)
+
+    async def test_empty_sse_read_failure_keeps_exception_type(self):
+        class BrokenStream(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                if False:
+                    yield b""
+                raise httpx.ReadTimeout("")
+
+        response = httpx.Response(200, stream=BrokenStream())
+        prime = await proxy._prime_responses_sse(response, self.request())
+        self.assertEqual(prime.status, "retry_transient")
+        self.assertIn("ReadTimeout", prime.error_message)
+        self.assertTrue(response.is_closed)
+
     async def test_downstream_send_failure_before_iteration_closes_upstream(self):
         response = await self.open_response()
         producer = asyncio.create_task(asyncio.sleep(100))

@@ -1409,15 +1409,19 @@ async def _close_sse_producer(
     # Starlette cancels the entire AnyIO task group on client disconnect. Without
     # shielding, cancellation can interrupt gather/aclose and leak pool slots.
     with anyio.CancelScope(shield=True):
-        if producer_task is not None:
-            if not producer_task.done():
-                producer_task.cancel()
-            await asyncio.gather(producer_task, return_exceptions=True)
-        if upstream_response is not None:
-            try:
-                await upstream_response.aclose()
-            except Exception as exc:
-                logger.warning("[Upstream Cleanup] %s", describe_upstream_error(exc))
+        try:
+            if producer_task is not None:
+                if not producer_task.done():
+                    producer_task.cancel()
+                await asyncio.gather(producer_task, return_exceptions=True)
+        finally:
+            # Direct Task.cancel() bypasses AnyIO shielding. Always close the
+            # response even if cancellation interrupts joining the producer.
+            if upstream_response is not None:
+                try:
+                    await upstream_response.aclose()
+                except Exception as exc:
+                    logger.warning("[Upstream Cleanup] %s", describe_upstream_error(exc))
 
 
 class UpstreamStreamingResponse(StreamingResponse):
@@ -1680,7 +1684,7 @@ async def _prime_responses_sse(
                         if res.status == "commit":
                             await queue.put(None)
                         return res
-                err_note = str(producer_exc[0]) if producer_exc else "Upstream SSE stream closed before emitting content"
+                err_note = describe_upstream_error(producer_exc[0]) if producer_exc else "Upstream SSE stream closed before emitting content"
                 return await abort_result("retry_transient", "empty_stream", err_note)
 
             buf.extend(chunk)
@@ -1701,7 +1705,7 @@ async def _prime_responses_sse(
         await _close_sse_producer(upstream_response, producer_task)
         raise
     except Exception as exc:
-        return await abort_result("retry_transient", type(exc).__name__, str(exc))
+        return await abort_result("retry_transient", type(exc).__name__, describe_upstream_error(exc))
 
 
 _SSE_LINE_BREAK_RE = re.compile(rb"\r\n|\r|\n")
@@ -1821,11 +1825,12 @@ async def _stream_generator(
                 yield b": ping\n\n"
     except Exception as exc:
         note_stream_error('upstream_stream_error')
-        logger.warning("[Stream Exception] Upstream SSE connection interrupted: %s", str(exc))
+        logger.warning("[Stream Exception] Upstream SSE connection interrupted: %s", describe_upstream_error(exc))
     finally:
         await _close_sse_producer(upstream_response, producer_task)
         if producer_exc:
             note_stream_error('upstream_stream_error')
+            logger.warning("[Stream Exception] Upstream SSE connection interrupted: %s", describe_upstream_error(producer_exc[0]))
         elif tracker is not None and tracker.error_code:
             note_stream_error(tracker.error_code)
         if tracker is not None and not tracker.completed:
