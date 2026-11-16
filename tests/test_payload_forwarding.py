@@ -160,6 +160,52 @@ class PayloadForwardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("id", clean["input"][0])
         self.assertIn("Готово".encode(), second)
 
+    async def test_marker_scan_enforces_cap_for_top_level_and_output_images(self):
+        payload = {"model": "synthetic", "input": [
+            {"type": "INPUT_IMAGE", "file_id": "oldest"},
+            {"type": "computer_screenshot", "data": "second"},
+            {"type": "function_call_output", "output": [
+                {"type": "image_url", "url": "third"},
+                {"image_url": "newest"},
+            ]},
+        ]}
+        body = json.dumps(payload, ensure_ascii=False).encode()
+        for cap in (0, 1, 3):
+            with self.subTest(cap=cap), mock.patch.object(proxy, "MAX_IMAGES_PER_REQUEST", cap):
+                expected, count = proxy.prune_excess_images(payload, max_images=cap)
+                self.assertEqual(count, 4 - cap)
+                self.responses = [self.completed()]
+                response = await self.forward(body)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(json.loads(self.requests[-1][0]), expected)
+
+    async def test_marker_scan_skips_below_cap_urls_and_preserves_original_bytes(self):
+        payload = {"input": [{"type": "message", "content": [
+            {"type": "input_image", "image_url": "data:image/png;base64,A"},
+            {"type": "image_url", "image_url": "data:image/png;base64,B"},
+            {"type": "computer_screenshot", "image_url": "data:image/png;base64,C"},
+        ]}]}
+        body = json.dumps(payload).encode().replace(b"base64,A", b"base64,\\u0041")
+        self.responses = [self.completed()]
+        with mock.patch.object(proxy, "MAX_IMAGES_PER_REQUEST", 3), mock.patch.object(
+                proxy, "_decode_responses_payload", wraps=proxy._decode_responses_payload) as decode:
+            response = await self.forward(body)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(decode.call_count, 0)
+        self.assertEqual(self.requests[0][0], body)
+
+    async def test_escaped_type_after_skipped_url_still_enforces_cap(self):
+        body = (b'{"input":[{"type":"message","content":['
+                b'{"type":"input_image","image_url":"data:image/png;base64,\\u0041"},'
+                b'{"type":"input_\\u0069mage","file_id":"newest"}]}]}')
+        expected, count = proxy.prune_excess_images(json.loads(body), max_images=1)
+        self.assertEqual(count, 1)
+        self.responses = [self.completed()]
+        with mock.patch.object(proxy, "MAX_IMAGES_PER_REQUEST", 1):
+            response = await self.forward(body)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(json.loads(self.requests[0][0]), expected)
+
     async def test_gzip_preserves_bytes_and_is_prepared_once_across_retries(self):
         body = ('{ "model":"synthetic", "input":' + json.dumps("Привет 🌍 " * 40000, ensure_ascii=False)
                 + ', "metadata":{"decimal":0.12345678901234567890123} }').encode()
@@ -442,6 +488,38 @@ class PayloadForwardingTests(unittest.IsolatedAsyncioTestCase):
         clean = json.loads(self.requests[-1][0])
         self.assertEqual(clean["input"], "\ud800")
         self.assertNotIn("previous_response_id", clean)
+
+
+class ImageMarkerScanTests(unittest.TestCase):
+    def test_shortcut_never_skips_required_pruning_for_mixed_json(self):
+        rng = random.Random(16112026)
+        parts = [
+            {"type": "input_image", "image_url": "data:image/png;base64,A"},
+            {"type": "computer_screenshot", "file_id": "screenshot"},
+            {"type": "IMAGE_URL", "url": "image"},
+            {"image_url": 'data:image/png;base64,A\\u0041\"input_image\",\"image_url\":\"B'},
+            {"type": "input_text", "text": '\"input_image\",\"image_url\":\"日本語\\u0069mage_url'},
+            {"type": "message", "image_url": {"url": "image"}},
+            {"type": "input_text", "text": "plain text"},
+        ]
+        for index in range(600):
+            cap = rng.randrange(0, 8)
+            items = [{"type": rng.choice(("message", "function_call_output")),
+                      rng.choice(("content", "output")): [rng.choice(parts) for _ in range(rng.randrange(0, 12))]}
+                     for _ in range(rng.randrange(0, 5))]
+            if rng.randrange(2):
+                items.insert(0, {"type": "INPUT_IMAGE", "image_url": "image"})
+            payload = {"input": items, "metadata": {"image_url": "unrelated"}}
+            body = json.dumps(payload, ensure_ascii=bool(rng.randrange(2))).encode()
+            if rng.randrange(2):
+                body = body.replace(b'"image_url"', b'"\\u0069mage_url"')
+            if rng.randrange(2):
+                body = body.replace(b"input_image", b"input_\\u0069mage")
+            parsed = json.loads(body)
+            _, pruned = proxy.prune_excess_images(parsed, max_images=cap)
+            if pruned:
+                self.assertTrue(proxy._payload_needs_image_pruning(body, cap),
+                                f"Required pruning was skipped in fixture {index}, cap {cap}")
 
 
 if __name__ == "__main__":

@@ -324,13 +324,14 @@ SSE_CHUNK_MAX_BYTES = 65536
 SSE_BUFFER_MAX_BYTES = max(SSE_CHUNK_MAX_BYTES, int(os.environ.get("PROXY_SSE_BUFFER_BYTES", "262144")))
 SSE_PRIME_MAX_BYTES = max(SSE_CHUNK_MAX_BYTES, int(os.environ.get("PROXY_SSE_PRIME_BYTES", "262144")))
 SSE_PRIME_MAX_FRAMES = max(1, int(os.environ.get("PROXY_SSE_PRIME_FRAMES", "1024")))
+LARGE_REQUEST_BODY_BYTES = 1024 * 1024
 RATE_LIMIT_SCOPE = os.environ.get("PROXY_RATE_LIMIT_SCOPE", "credential").lower()
 if RATE_LIMIT_SCOPE not in ("credential", "shared"):
     raise ValueError("PROXY_RATE_LIMIT_SCOPE must be credential or shared")
 RATE_LIMIT_MAX_PARTITIONS = max(1, int(os.environ.get("PROXY_RATE_LIMIT_PARTITIONS", "256")))
 TIMINGS = RuntimeTimings(os.environ.get("PROXY_TIMINGS", "0").lower() not in ("0", "", "false"))
 _STARTED_MONOTONIC = time.monotonic()
-VERSION = "1.9.0"
+VERSION = "1.9.1"
 _PROFILE_HASH_KEY = os.urandom(32)
 
 CLIENT_TIMEOUT = httpx.Timeout(
@@ -1084,6 +1085,27 @@ def describe_upstream_error(exc: Exception) -> str:
     return type(exc).__name__ + (": " + detail[:500] if detail else "")
 
 
+class _ReleasingUploadStream(httpx.AsyncByteStream):
+    """Let HTTPcore retain upload metadata without retaining a large payload."""
+
+    def __init__(self, content: bytes):
+        self._content: Optional[bytes] = content
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        if self._content is None:
+            raise httpx.StreamConsumed()
+        try:
+            yield self._content
+        finally:
+            self.release()
+
+    def release(self) -> None:
+        self._content = None
+
+    async def aclose(self) -> None:
+        self.release()
+
+
 async def _send_with_transport_retry(
     client: httpx.AsyncClient,
     method: str,
@@ -1101,13 +1123,22 @@ async def _send_with_transport_retry(
     """
     last_exc = None
     for attempt in range(1, max_retries + 1):
+        upload_stream = None
         try:
+            request_headers = headers
+            if content is not None and len(content) >= LARGE_REQUEST_BODY_BYTES:
+                # Request(content=bytes) caches the body, and HTTPcore keeps its
+                # upload stream until the response closes. Keep replay bytes in
+                # the caller instead and release this attempt's stream on upload.
+                upload_stream = _ReleasingUploadStream(content)
+                request_headers = httpx.Headers(headers)
+                request_headers["content-length"] = str(len(content))
             req = client.build_request(
                 method=method,
                 url=url,
-                headers=headers,
+                headers=request_headers,
                 params=params,
-                content=content,
+                content=upload_stream if upload_stream is not None else content,
             )
             trace = TIMINGS.upstream_trace(req.extensions.get("trace")) if TIMINGS.enabled else None
             if trace is not None:
@@ -1140,6 +1171,10 @@ async def _send_with_transport_retry(
                 await asyncio.sleep(backoff_s)
             else:
                 raise
+        finally:
+            if upload_stream is not None:
+                # Also covers admission cancellation and incomplete uploads.
+                upload_stream.release()
     raise last_exc
 
 # ----------------------------------------------------------------------------
@@ -1869,15 +1904,37 @@ def _encode_responses_payload(payload: dict) -> bytes:
         return json.dumps(payload, separators=(",", ":")).encode("utf-8")
 
 
-_IMAGE_PAYLOAD_MARKER_RE = re.compile(
-    rb'"(?:input_image|computer_screenshot|image_url)"', re.IGNORECASE,
+_IMAGE_PRUNING_MARKER_RE = re.compile(
+    rb'"(?:input_image|computer_screenshot|image_url)"'
+    rb'(?:\s*,\s*"image_url")?(?P<value>\s*:\s*")?', re.IGNORECASE,
 )
 
 
-def _payload_may_contain_images(body: bytes) -> bool:
-    # JSON quoting excludes words inside escaped text. Unicode escapes can hide
-    # a type or field name, so ambiguous bodies still take the full parsing path.
-    return bool(_IMAGE_PAYLOAD_MARKER_RE.search(body)) or b"\\u" in body
+def _payload_needs_image_pruning(body: bytes, max_images: int) -> bool:
+    # Every recognized image has a quoted marker. Adjacent type/value and
+    # image_url key markers belong to the same object and can count as one.
+    # Other matches can overestimate, never undercount. A string field's value
+    # cannot contain more image objects, so skip it with bytes.find (no copy).
+    cursor = count = 0
+    while True:
+        marker = _IMAGE_PRUNING_MARKER_RE.search(body, cursor)
+        boundary = marker.start() if marker is not None else len(body)
+        # Escapes outside skipped string values can hide a type/key.
+        if body.find(b"\\u", cursor, boundary) != -1:
+            return True
+        if marker is None:
+            return False
+        count += 1
+        if count > max_images:
+            return True
+        cursor = marker.end()
+        if marker.group("value") is not None:
+            quote = body.find(b'"', cursor)
+            if quote == -1:
+                return True
+            # An escaped quote ends the shortcut early; subsequent bytes are
+            # inspected conservatively instead of needing a JSON string parser.
+            cursor = quote + 1
 
 
 def _decode_responses_payload(body: bytes) -> Optional[dict]:
@@ -2120,7 +2177,12 @@ async def _prepare_responses_request(request: Request):
     rate_state = _acquire_rate_limit_state(source_headers)
     async with _watch_client_disconnect(request):
         try:
-            return await _handle_responses(request, body_bytes, source_headers, rate_state)
+            response = await _handle_responses(request, body_bytes, source_headers, rate_state)
+            if isinstance(response, UpstreamStreamingResponse) and len(body_bytes) >= LARGE_REQUEST_BODY_BYTES:
+                # SSE has committed; neither recovery nor upload needs the body
+                # now. Keep the cache attribute to mark the receive side consumed.
+                request._body = b""
+            return response
         finally:
             _release_rate_limit_state(rate_state)
 
@@ -2128,7 +2190,8 @@ async def _prepare_responses_request(request: Request):
 async def _handle_responses(request: Request, body_bytes: bytes, source_headers: Dict[str, str],
                             rate_state: Dict[str, Any]):
     with TIMINGS.measure("payload_inspect"):
-        body_json = _decode_responses_payload(body_bytes) if _payload_may_contain_images(body_bytes) else None
+        body_json = (_decode_responses_payload(body_bytes)
+                     if _payload_needs_image_pruning(body_bytes, MAX_IMAGES_PER_REQUEST) else None)
         headers = source_headers
         upstream_url = f"{UPSTREAM}/v1/responses"
 
@@ -2143,6 +2206,8 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
             active_payload, pre_pruned = prune_excess_images(active_payload, max_images=MAX_IMAGES_PER_REQUEST)
             if pre_pruned > 0:
                 req_content = _encode_responses_payload(active_payload)
+                # Recovery uses the pruned tree; release removed image strings.
+                body_json = active_payload
                 STATS["images_pruned_total"] += pre_pruned
                 logger.warning(
                     "[Preemptive Image Pruning] Pruned %d historical images (kept %d latest) to prevent 50-image ceiling rejection",
@@ -2169,6 +2234,8 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
             )
             req_content = _encode_responses_payload(active_payload)
             wire_content = req_content if gzip_fallback_active else None
+            # Subsequent attempts reuse these bytes, not the decoded trees.
+            body_json = active_payload = None
             logger.warning("[Recovery] Activating sanitized stateless payload to bypass cross-resource pinning!")
             return True
         mismatch_attempts += 1

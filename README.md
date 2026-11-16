@@ -2,7 +2,9 @@
 
 A lightweight local compatibility proxy that fixes cross-resource session errors when using **Codex Desktop** or **Codex CLI** with **AgentRouter**.
 
-Version **1.9.0** adds an independent browser panel at **http://127.0.0.1:8789/**, automatic recovery of an unresponsive worker, bounded request/metrics history and Russian/English interfaces. API traffic stays on **127.0.0.1:8788**. Payload transformations use less temporary memory, and the default per-stream queue is 256 KiB. See [changes and measurements](docs/resilience-1.9.0.md).
+Version **1.9.1** releases large uploaded bodies during long response streams and avoids whole-body JSON decoding when a conservative image check proves pruning is unnecessary. See [memory changes and measurements](docs/body-memory-1.9.1.md).
+
+The independent browser panel at **http://127.0.0.1:8789/** provides automatic worker recovery, bounded request/metrics history and Russian/English interfaces. API traffic stays on **127.0.0.1:8788**, with a default 256 KiB per-stream queue. See [browser features and measurements](docs/resilience-1.9.0.md).
 
 ---
 

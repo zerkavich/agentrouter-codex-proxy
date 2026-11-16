@@ -1,0 +1,165 @@
+{
+  "status": "passed",
+  "started_at": "2026-11-16T10:23:04.435842+00:00",
+  "baseline_ref": "4353d3c4cf7a37fc552a0309247f688f63a35fa5",
+  "runtime_sha256": {
+    "baseline": {
+      "proxy.py": "09fb14d64670136d0867c7bb6b3233ba583bfa4987102df8a66139fc1b74f227",
+      "telemetry.py": "916aee4d9d0005c0d6282a8707e80267f117826824334ccbf378637912a1623e",
+      "control.py": "1ed5bab66d20e74f0328559417a3945c7a8d60bd8103d7ceb3c992db9e44925f",
+      "panel_updates.py": "21d448dfbebfdc68b1d30fd6e3b249b818c8351e845860d51b7088de7ad0f992",
+      "doctor.py": "ab503763e7aa3bf2af743b91c3c3d15ec1818a5619525abd455bd418286d714b",
+      "update_guard.py": "7c00f87e2c50b8d9d95af096ced6d731d332f417e4578911bd83c12260602151"
+    },
+    "candidate": {
+      "proxy.py": "54138cdbea6b365a630b6791a13215e9c24d04c2e78e2fba83cfd9c271351709",
+      "telemetry.py": "8d8f47edfa67e29517709ff1ed583ed2d6b08699c3c5f541267cbd0739969c77",
+      "control.py": "731ef58f2e3d2b6f68333c41dd574ac36cea867817b33888c8f4ba8860fce140",
+      "panel_updates.py": "1fdaba97ccf30ca0a041c1671a20c0653993d3e304f69ccfb3c795065188e240",
+      "doctor.py": "3911beb50b861de4c0040f26a60ead1b1f16ae935b6d09bb2112eeceadf29401",
+      "update_guard.py": "5d3b3fb3ed20e4d6db70fb6d4f2b3bdf5cd3f2524eacb14dc2c8aa7ba30c869f"
+    }
+  },
+  "benchmark_sha256": "23c56ca379a6f8f303eb5df7874fd31abddc8d2e252fd340f6fc46286010b296",
+  "python": "3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]",
+  "samples": 6,
+  "size_mib": 32,
+  "timing_samples_per_worker": 10,
+  "real_model_calls": 0,
+  "memory_semantics": "Live Python allocations including fixture; not RSS",
+  "method": "Isolated processes in adjacent AB/BA order; warmed TCP backend; separate untraced timing run",
+  "packages": {
+    "httpx": "0.28.1",
+    "httpcore": "1.0.9",
+    "starlette": "0.41.3",
+    "anyio": "4.16.0"
+  },
+  "finished_at": "2026-11-16T10:26:17.987249+00:00",
+  "hashes_verified": true,
+  "frozen_sources_unchanged": true,
+  "summary": {
+    "large_image": {
+      "baseline": {
+        "memory": {
+          "waiting_headers_bytes": 67290586.5,
+          "committed_stream_bytes": 33737264.0,
+          "peak_bytes": 100674013.0
+        },
+        "timing": {
+          "final_upload_ms": 105.65725000014936,
+          "response_ready_ms": 108.78502500008835
+        }
+      },
+      "candidate": {
+        "memory": {
+          "waiting_headers_bytes": 33749766.5,
+          "committed_stream_bytes": 196804.0,
+          "peak_bytes": 67114140.0
+        },
+        "timing": {
+          "final_upload_ms": 71.775124999931,
+          "response_ready_ms": 73.90757499979372
+        }
+      },
+      "input_bytes": 33554582,
+      "median_paired_ready_saved_ms": 33.490625000467844
+    },
+    "thirty_images": {
+      "baseline": {
+        "memory": {
+          "waiting_headers_bytes": 67302675.5,
+          "committed_stream_bytes": 33740484.0,
+          "peak_bytes": 100686126.0
+        },
+        "timing": {
+          "final_upload_ms": 106.73337499974878,
+          "response_ready_ms": 109.99489999994694
+        }
+      },
+      "candidate": {
+        "memory": {
+          "waiting_headers_bytes": 33753321.0,
+          "committed_stream_bytes": 198605.0,
+          "peak_bytes": 67117616.0
+        },
+        "timing": {
+          "final_upload_ms": 72.48765000076673,
+          "response_ready_ms": 74.88010000042777
+        }
+      },
+      "input_bytes": 33556320,
+      "median_paired_ready_saved_ms": 35.00469999971756
+    },
+    "large_text": {
+      "baseline": {
+        "memory": {
+          "waiting_headers_bytes": 33734457.0,
+          "committed_stream_bytes": 33736804.5,
+          "peak_bytes": 67113924.0
+        },
+        "timing": {
+          "final_upload_ms": 93.00260000009075,
+          "response_ready_ms": 93.84597500002201
+        }
+      },
+      "candidate": {
+        "memory": {
+          "waiting_headers_bytes": 33749586.0,
+          "committed_stream_bytes": 196751.0,
+          "peak_bytes": 67113932.0
+        },
+        "timing": {
+          "final_upload_ms": 87.99392499986425,
+          "response_ready_ms": 90.4749999995147
+        }
+      },
+      "input_bytes": 33554478,
+      "median_paired_ready_saved_ms": -1.639550000163581
+    },
+    "resource_mismatch": {
+      "baseline": {
+        "memory": {
+          "waiting_headers_bytes": 101001137.0,
+          "committed_stream_bytes": 67361313.0,
+          "peak_bytes": 151175409.0
+        },
+        "timing": {
+          "final_upload_ms": 309.87047499957043,
+          "response_ready_ms": 312.3289499999373
+        }
+      },
+      "candidate": {
+        "memory": {
+          "waiting_headers_bytes": 67460176.5,
+          "committed_stream_bytes": 265381.5,
+          "peak_bytes": 151189462.5
+        },
+        "timing": {
+          "final_upload_ms": 311.15737499976603,
+          "response_ready_ms": 315.96162500045466
+        }
+      },
+      "input_bytes": 33554622,
+      "median_paired_ready_saved_ms": -9.430375000647473
+    }
+  },
+  "runtime_git_lf_sha256": {
+    "baseline": {
+      "proxy.py": "09fb14d64670136d0867c7bb6b3233ba583bfa4987102df8a66139fc1b74f227",
+      "telemetry.py": "916aee4d9d0005c0d6282a8707e80267f117826824334ccbf378637912a1623e",
+      "control.py": "1ed5bab66d20e74f0328559417a3945c7a8d60bd8103d7ceb3c992db9e44925f",
+      "panel_updates.py": "21d448dfbebfdc68b1d30fd6e3b249b818c8351e845860d51b7088de7ad0f992",
+      "doctor.py": "ab503763e7aa3bf2af743b91c3c3d15ec1818a5619525abd455bd418286d714b",
+      "update_guard.py": "7c00f87e2c50b8d9d95af096ced6d731d332f417e4578911bd83c12260602151"
+    },
+    "candidate": {
+      "proxy.py": "da3883f08569c3f700f357979f962226de29d5d749de69c52faa039458371b3b",
+      "telemetry.py": "916aee4d9d0005c0d6282a8707e80267f117826824334ccbf378637912a1623e",
+      "control.py": "1ed5bab66d20e74f0328559417a3945c7a8d60bd8103d7ceb3c992db9e44925f",
+      "panel_updates.py": "21d448dfbebfdc68b1d30fd6e3b249b818c8351e845860d51b7088de7ad0f992",
+      "doctor.py": "ab503763e7aa3bf2af743b91c3c3d15ec1818a5619525abd455bd418286d714b",
+      "update_guard.py": "7c00f87e2c50b8d9d95af096ced6d731d332f417e4578911bd83c12260602151"
+    }
+  },
+  "request_gzip": false
+}
