@@ -1,0 +1,250 @@
+{
+  "status": "passed",
+  "started_at": "2026-11-16T18:38:27.456036+00:00",
+  "finished_at": "2026-11-16T18:47:10.785582+00:00",
+  "baseline_ref": "f112857586c0ec01043ddd608b87d597c5e28da2",
+  "runtime_sha256": {
+    "baseline": {
+      "proxy.py": "a55e4904b9e06ff06f36c5bb27636f10a26c0abdac926f51fb0641411e4ee7ed",
+      "control.py": "15476ec89757d556739e31b559563e3148ed165be40feb48e4940ebbd83b14dc",
+      "telemetry.py": "916aee4d9d0005c0d6282a8707e80267f117826824334ccbf378637912a1623e",
+      "panel_updates.py": "1570038b8641067f111c3c61cc51495ea240e3f8d62e3f9ddcbc1a45fbbfdad7",
+      "doctor.py": "ab503763e7aa3bf2af743b91c3c3d15ec1818a5619525abd455bd418286d714b",
+      "update_guard.py": "7c00f87e2c50b8d9d95af096ced6d731d332f417e4578911bd83c12260602151"
+    },
+    "candidate": {
+      "proxy.py": "17df1fb64c37ff89f2b924fcb1cfb789806261d3399cc56a306c037b0d75b0ab",
+      "control.py": "d9a1862fcd30d53ac44f2f5a5671d7f6eeaa4a4af89c863940ccce7dfe622355",
+      "telemetry.py": "1a0e2ed0c699c4037a6fedf8941820f548b0ab533be9f4d67b560133227c275d",
+      "panel_updates.py": "94a29884c2ca7e49a10866d792cb38e58b48207fa1eb82ad92a9cdd1ccf18562",
+      "doctor.py": "3911beb50b861de4c0040f26a60ead1b1f16ae935b6d09bb2112eeceadf29401",
+      "update_guard.py": "5d3b3fb3ed20e4d6db70fb6d4f2b3bdf5cd3f2524eacb14dc2c8aa7ba30c869f"
+    }
+  },
+  "benchmark_sha256": "269c4dd9f277d06c92dc7bf8d56fb1444cc1acb11a40528ac9bd38b1a02a218b",
+  "python": "3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]",
+  "samples": 8,
+  "size_mib": 32,
+  "timing_samples_per_worker": 10,
+  "request_gzip": "on",
+  "cases": [
+    "large_image",
+    "large_text",
+    "resource_mismatch",
+    "resource_mismatch_text",
+    "resource_mismatch_history",
+    "gzip_rejected"
+  ],
+  "real_model_calls": 0,
+  "memory_semantics": "Live Python allocations including fixture; not RSS",
+  "method": "Isolated processes in adjacent AB/BA order; warmed TCP backend; separate untraced timing run",
+  "packages": {
+    "httpx": "0.28.1",
+    "httpcore": "1.0.9",
+    "starlette": "0.41.3",
+    "anyio": "4.16.0"
+  },
+  "hashes_verified": true,
+  "frozen_sources_unchanged": true,
+  "summary": {
+    "large_image": {
+      "baseline": {
+        "memory": {
+          "waiting_headers_bytes": 33821918.0,
+          "committed_stream_bytes": 269673.0,
+          "peak_bytes": 67114156.0
+        },
+        "timing": {
+          "final_upload_ms": 119.74347499926807,
+          "response_ready_ms": 122.18274999941059
+        }
+      },
+      "candidate": {
+        "memory": {
+          "waiting_headers_bytes": 267707.0,
+          "committed_stream_bytes": 269626.0,
+          "peak_bytes": 67114156.0
+        },
+        "timing": {
+          "final_upload_ms": 121.28777500038268,
+          "response_ready_ms": 122.03997500000696
+        }
+      },
+      "input_bytes": 33554582,
+      "upstream_wire_bytes": {
+        "baseline": 32727,
+        "candidate": 32727
+      },
+      "median_paired_ready_saved_ms": 0.20057500114489812
+    },
+    "large_text": {
+      "baseline": {
+        "memory": {
+          "waiting_headers_bytes": 33821742.0,
+          "committed_stream_bytes": 269554.0,
+          "peak_bytes": 67113948.0
+        },
+        "timing": {
+          "final_upload_ms": 135.63464999970165,
+          "response_ready_ms": 137.945349997608
+        }
+      },
+      "candidate": {
+        "memory": {
+          "waiting_headers_bytes": 267608.5,
+          "committed_stream_bytes": 269554.0,
+          "peak_bytes": 67113948.0
+        },
+        "timing": {
+          "final_upload_ms": 136.88850000107777,
+          "response_ready_ms": 137.67437499882362
+        }
+      },
+      "input_bytes": 33554478,
+      "upstream_wire_bytes": {
+        "baseline": 32655,
+        "candidate": 32655
+      },
+      "median_paired_ready_saved_ms": 0.10612499863782432
+    },
+    "resource_mismatch": {
+      "baseline": {
+        "memory": {
+          "waiting_headers_bytes": 34010564.5,
+          "committed_stream_bytes": 338293.0,
+          "peak_bytes": 100890077.0
+        },
+        "timing": {
+          "final_upload_ms": 387.4555500005954,
+          "response_ready_ms": 389.87927499692887
+        }
+      },
+      "candidate": {
+        "memory": {
+          "waiting_headers_bytes": 456349.5,
+          "committed_stream_bytes": 338193.0,
+          "peak_bytes": 67555170.0
+        },
+        "timing": {
+          "final_upload_ms": 318.3578500011208,
+          "response_ready_ms": 319.242524999936
+        }
+      },
+      "input_bytes": 33554622,
+      "upstream_wire_bytes": {
+        "baseline": 65495,
+        "candidate": 65495
+      },
+      "median_paired_ready_saved_ms": 70.11220000094909
+    },
+    "resource_mismatch_text": {
+      "baseline": {
+        "memory": {
+          "waiting_headers_bytes": 34451013.0,
+          "committed_stream_bytes": 558491.0,
+          "peak_bytes": 235326352.0
+        },
+        "timing": {
+          "final_upload_ms": 310.3495750001457,
+          "response_ready_ms": 312.7199249975092
+        }
+      },
+      "candidate": {
+        "memory": {
+          "waiting_headers_bytes": 896912.0,
+          "committed_stream_bytes": 558550.0,
+          "peak_bytes": 68181555.5
+        },
+        "timing": {
+          "final_upload_ms": 247.7816000009625,
+          "response_ready_ms": 248.64134999916132
+        }
+      },
+      "input_bytes": 33554516,
+      "upstream_wire_bytes": {
+        "baseline": 506026,
+        "candidate": 506026
+      },
+      "median_paired_ready_saved_ms": 65.52269999701821
+    },
+    "resource_mismatch_history": {
+      "baseline": {
+        "memory": {
+          "waiting_headers_bytes": 34296747.5,
+          "committed_stream_bytes": 477705.0,
+          "peak_bytes": 105757978.0
+        },
+        "timing": {
+          "final_upload_ms": 396.1445499990077,
+          "response_ready_ms": 398.51850000013656
+        }
+      },
+      "candidate": {
+        "memory": {
+          "waiting_headers_bytes": 735173.5,
+          "committed_stream_bytes": 477609.0,
+          "peak_bytes": 105758382.0
+        },
+        "timing": {
+          "final_upload_ms": 411.4380250030081,
+          "response_ready_ms": 412.2985250014608
+        }
+      },
+      "input_bytes": 33561949,
+      "upstream_wire_bytes": {
+        "baseline": 344311,
+        "candidate": 344311
+      },
+      "median_paired_ready_saved_ms": -14.956175000406802
+    },
+    "gzip_rejected": {
+      "baseline": {
+        "memory": {
+          "waiting_headers_bytes": 33955273.0,
+          "committed_stream_bytes": 282349.0,
+          "peak_bytes": 67114156.0
+        },
+        "timing": {
+          "final_upload_ms": 178.7746750014776,
+          "response_ready_ms": 181.32322500059672
+        }
+      },
+      "candidate": {
+        "memory": {
+          "waiting_headers_bytes": 33955868.0,
+          "committed_stream_bytes": 282059.0,
+          "peak_bytes": 67333402.0
+        },
+        "timing": {
+          "final_upload_ms": 199.70622500295576,
+          "response_ready_ms": 202.75285000025178
+        }
+      },
+      "input_bytes": 33554582,
+      "upstream_wire_bytes": {
+        "baseline": 33587309,
+        "candidate": 33587309
+      },
+      "median_paired_ready_saved_ms": -22.397449998607044
+    }
+  },
+  "runtime_git_lf_sha256": {
+    "baseline": {
+      "proxy.py": "a55e4904b9e06ff06f36c5bb27636f10a26c0abdac926f51fb0641411e4ee7ed",
+      "control.py": "15476ec89757d556739e31b559563e3148ed165be40feb48e4940ebbd83b14dc",
+      "telemetry.py": "916aee4d9d0005c0d6282a8707e80267f117826824334ccbf378637912a1623e",
+      "panel_updates.py": "1570038b8641067f111c3c61cc51495ea240e3f8d62e3f9ddcbc1a45fbbfdad7",
+      "doctor.py": "ab503763e7aa3bf2af743b91c3c3d15ec1818a5619525abd455bd418286d714b",
+      "update_guard.py": "7c00f87e2c50b8d9d95af096ced6d731d332f417e4578911bd83c12260602151"
+    },
+    "candidate": {
+      "proxy.py": "e0991fe6429a83c02fa94f003ca82d40c124b1fd8ae3cf0f8c6b5523d7da117e",
+      "control.py": "15476ec89757d556739e31b559563e3148ed165be40feb48e4940ebbd83b14dc",
+      "telemetry.py": "9c907e17230dff5a2829dce988b7cfec939749b94a7253eb9e06ac0cd1ffae3b",
+      "panel_updates.py": "1570038b8641067f111c3c61cc51495ea240e3f8d62e3f9ddcbc1a45fbbfdad7",
+      "doctor.py": "ab503763e7aa3bf2af743b91c3c3d15ec1818a5619525abd455bd418286d714b",
+      "update_guard.py": "7c00f87e2c50b8d9d95af096ced6d731d332f417e4578911bd83c12260602151"
+    }
+  },
+  "raw_pairs_sha256": "fb985b166c35e963bb39dd8f41cc83ef004d440bd9f8d419b5d2abcc169387b2"
+}

@@ -32,6 +32,8 @@ TRACE_STAGES = {
     "connection.start_tls": "upstream_tls",
     "http11.send_request_body": "upstream_upload",
     "http11.receive_response_headers": "upstream_headers",
+    "http2.send_request_body": "upstream_upload",
+    "http2.receive_response_headers": "upstream_headers",
 }
 
 # A context contains only small numeric aggregates and fixed endpoint labels.

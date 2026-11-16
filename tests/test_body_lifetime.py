@@ -208,8 +208,8 @@ class BodyLifetimeTests(unittest.IsolatedAsyncioTestCase):
         references = []
         original_decode = proxy._decode_responses_payload
 
-        def decode(content):
-            payload = Parsed(original_decode(content))
+        def decode(content, **options):
+            payload = Parsed(original_decode(content, **options))
             references.append(weakref.ref(payload))
             return payload
 
@@ -271,8 +271,9 @@ class BodyLifetimeTests(unittest.IsolatedAsyncioTestCase):
             retained, _ = tracemalloc.get_traced_memory()
             self.assertEqual(self.upload_hash, expected_hash)
             self.assertEqual(getattr(request, '_body', None), b'')
-            # Current replay bytes plus a pruned tree; removed source is gone.
-            self.assertLess(retained, 2 * expected_size + 2 * 1024 * 1024)
+            # Only current replay bytes remain; both parsed source trees and
+            # removed images are gone before response headers arrive.
+            self.assertLess(retained, expected_size + 2 * 1024 * 1024)
             await self.response(handler)
 
     async def test_gzip_rejection_replays_large_plain_body(self):
@@ -285,6 +286,78 @@ class BodyLifetimeTests(unittest.IsolatedAsyncioTestCase):
             await self.response(handler)
         self.assertEqual([upload["sha256"] for upload in self.uploads], [compressed_hash, expected_hash])
         self.assertEqual([upload["headers"].get(b"content-encoding") for upload in self.uploads], [b"gzip", None])
+
+    async def test_gzip_releases_original_before_headers_and_replays_after_reset(self):
+        body = self.image_body()
+        compressed_hash = hashlib.sha256(gzip.compress(body, compresslevel=1, mtime=0)).hexdigest()
+        del body
+        self.actions = ['reset']
+        gc.collect()
+        tracemalloc.start(1)
+        request = self.request(self.image_body())
+        with mock.patch.multiple(proxy, REQUEST_GZIP_ENABLED=True, _native_gzip=None):
+            handler = await self.start(request)
+            gc.collect()
+            retained, _ = tracemalloc.get_traced_memory()
+            self.assertEqual(request._body, b'')
+            self.assertLess(retained, 2 * 1024 * 1024)
+            await self.response(handler)
+        self.assertEqual([upload['sha256'] for upload in self.uploads], [compressed_hash, compressed_hash])
+        self.assertTrue(all(upload['headers'][b'content-encoding'] == b'gzip' for upload in self.uploads))
+
+    async def test_gzip_releases_original_while_waiting_for_admission(self):
+        entered, released = asyncio.Event(), asyncio.Event()
+        async def gate(*args, **kwargs):
+            entered.set()
+            await released.wait()
+            return True
+        gc.collect()
+        tracemalloc.start(1)
+        request = self.request(self.image_body())
+        with mock.patch.object(proxy, 'REQUEST_GZIP_ENABLED', True), mock.patch.object(proxy, '_wait_for_rate_limit_gate', side_effect=gate):
+            handler = asyncio.create_task(proxy.handle_responses(request))
+            self.handlers.append(handler)
+            try:
+                await asyncio.wait_for(entered.wait(), 5)
+                gc.collect()
+                retained, _ = tracemalloc.get_traced_memory()
+                self.assertEqual(request._body, b'')
+                self.assertFalse(self.uploads)
+                self.assertLess(retained, 2 * 1024 * 1024)
+            finally:
+                released.set()
+            await asyncio.wait_for(self.uploaded.wait(), 5)
+            await self.response(handler)
+
+    async def test_actual_upload_trace_finishes_before_response_headers(self):
+        body = self.image_body()
+        traces, observations = [], []
+        original_trace = proxy._UploadTrace
+        original_record = proxy._record_upload_observation
+        def make_trace(previous=None):
+            trace = original_trace(previous)
+            traces.append(trace)
+            return trace
+        def record(content, headers, elapsed, response, **timing):
+            observations.append((len(content), elapsed, response.status_code))
+            original_record(content, headers, elapsed, response, **timing)
+        with mock.patch.multiple(proxy, REQUEST_GZIP_ENABLED=True, REQUEST_GZIP_UPLOAD_MBIT_S=0), mock.patch.object(
+                proxy, '_gzip_if_worthwhile', side_effect=lambda content, **options: content), mock.patch.object(
+                proxy, '_UploadTrace', side_effect=make_trace), mock.patch.object(
+                proxy, '_record_upload_observation', side_effect=record):
+            handler = await self.start(self.request(body))
+            self.assertEqual(len(traces), 1)
+            elapsed = traces[0].elapsed
+            self.assertIsNotNone(elapsed)
+            self.assertGreater(elapsed, 0)
+            self.assertFalse(self.send_headers.is_set())
+            self.assertFalse(observations)
+            await asyncio.sleep(0.03)
+            await self.response(handler)
+        self.assertEqual(observations, [(len(body), elapsed, 200)])
+        self.assertEqual(traces[0].elapsed, elapsed)
+        self.assertIsNone(traces[0].previous)
+        self.assertIsNone(traces[0].started)
 
 
 if __name__ == "__main__":

@@ -48,6 +48,7 @@ import sys
 import threading
 import time
 import weakref
+import zlib
 from typing import Any, AsyncIterator, Dict, List, Mapping, Optional, Tuple
 
 import anyio
@@ -321,6 +322,8 @@ REQUEST_GZIP_CACHE_SIZE = 256
 REQUEST_GZIP_UPLOAD_MBIT_S = max(0.0, float(os.environ.get("PROXY_GZIP_UPLOAD_MBIT_S", "0")))
 REQUEST_GZIP_COST_MARGIN = max(1.0, float(os.environ.get("PROXY_GZIP_COST_MARGIN", "2")))
 GZIP_PROFILE_TTL_S = 120.0
+UPLOAD_OBSERVATION_MIN_BYTES = 512 * 1024
+UPLOAD_ESTIMATE_MAX_MBIT_S = 1000.0
 SSE_CHUNK_MAX_BYTES = 65536
 SSE_BUFFER_MAX_BYTES = max(SSE_CHUNK_MAX_BYTES, int(os.environ.get("PROXY_SSE_BUFFER_BYTES", "262144")))
 SSE_PRIME_MAX_BYTES = max(SSE_CHUNK_MAX_BYTES, int(os.environ.get("PROXY_SSE_PRIME_BYTES", "262144")))
@@ -332,7 +335,7 @@ if RATE_LIMIT_SCOPE not in ("credential", "shared"):
 RATE_LIMIT_MAX_PARTITIONS = max(1, int(os.environ.get("PROXY_RATE_LIMIT_PARTITIONS", "256")))
 TIMINGS = RuntimeTimings(os.environ.get("PROXY_TIMINGS", "0").lower() not in ("0", "", "false"))
 _STARTED_MONOTONIC = time.monotonic()
-VERSION = "1.9.2"
+VERSION = "1.9.3"
 _PROFILE_HASH_KEY = os.urandom(32)
 
 CLIENT_TIMEOUT = httpx.Timeout(
@@ -1107,6 +1110,37 @@ class _ReleasingUploadStream(httpx.AsyncByteStream):
         self.release()
 
 
+class _UploadTrace:
+    """Measure successful socket-body writes, without retaining trace metadata."""
+    __slots__ = ("previous", "started", "protocol", "elapsed", "header_wait")
+
+    def __init__(self, previous=None):
+        self.previous = previous
+        self.started = self.protocol = self.elapsed = self.header_wait = None
+
+    async def __call__(self, event: str, info: dict) -> None:
+        if event in ("http11.send_request_body.started", "http2.send_request_body.started"):
+            self.protocol = event.split(".", 1)[0]
+            self.started = time.perf_counter()
+            self.elapsed = self.header_wait = None
+        elif self.protocol is not None and event == self.protocol + ".send_request_body.complete":
+            completed = time.perf_counter()
+            self.elapsed = completed - self.started
+            self.started = completed
+        elif self.elapsed is not None and self.protocol is not None and event == self.protocol + ".receive_response_headers.complete":
+            self.header_wait = time.perf_counter() - self.started
+            self.started = self.protocol = None
+        elif event in ("http11.send_request_body.failed", "http2.send_request_body.failed"):
+            self.started = self.protocol = self.elapsed = self.header_wait = None
+        if self.previous is not None:
+            result = self.previous(event, info)
+            if hasattr(result, "__await__"):
+                await result
+
+    def close(self) -> None:
+        self.previous = self.started = self.protocol = None
+
+
 async def _send_with_transport_retry(
     client: httpx.AsyncClient,
     method: str,
@@ -1142,11 +1176,21 @@ async def _send_with_transport_retry(
                 content=upload_stream if upload_stream is not None else content,
             )
             trace = TIMINGS.upstream_trace(req.extensions.get("trace")) if TIMINGS.enabled else None
-            if trace is not None:
-                req.extensions["trace"] = trace
+            upload_trace = (_UploadTrace(trace or req.extensions.get("trace"))
+                            if REQUEST_GZIP_ENABLED and REQUEST_GZIP_UPLOAD_MBIT_S <= 0
+                            and content is not None and len(content) >= UPLOAD_OBSERVATION_MIN_BYTES
+                            and not headers.get("content-encoding") else None)
+            if upload_trace is not None or trace is not None:
+                req.extensions["trace"] = upload_trace if upload_trace is not None else trace
             try:
-                return await _send_with_capacity(client, req, stream=stream)
+                response = await _send_with_capacity(client, req, stream=stream)
+                if upload_trace is not None and upload_trace.elapsed is not None:
+                    _record_upload_observation(content, headers, upload_trace.elapsed, response,
+                                               header_wait_s=upload_trace.header_wait)
+                return response
             finally:
+                if upload_trace is not None:
+                    upload_trace.close()
                 if trace is not None:
                     trace.close()
         except (httpx.ConnectError, httpx.ConnectTimeout, httpx.RemoteProtocolError, httpx.ReadTimeout) as exc:
@@ -1895,6 +1939,285 @@ def _rate_limit_error_response(
     return JSONResponse(status_code=429, content={"error": body_err}, headers=out_headers)
 
 
+_JSON_DECODE_GROUP_BYTES = 262144
+_JSON_DECODE_CHUNK_BYTES = 65536
+_JSON_WS_BYTES_RE = re.compile(rb'[ \t\r\n]*')
+_JSON_STRUCTURAL_BYTES_RE = re.compile(rb'["{}\[\]]')
+_JSON_SCALAR_END_BYTES_RE = re.compile(rb'[ \t\r\n,}\]]')
+
+
+class _ChunkedJSONText:
+    """Canonical JSON string interiors; no source views or joined Unicode."""
+    __slots__ = ('chunks', 'requires_ascii')
+
+    def __init__(self, chunks, requires_ascii=False):
+        self.chunks = tuple(chunks)
+        self.requires_ascii = requires_ascii
+
+
+def _json_string_end(body, start):
+    cursor = start + 1
+    while True:
+        end = body.find(b'"', cursor)
+        if end < 0:
+            raise ValueError('unterminated string')
+        if body[end - 1] != 92:
+            return end + 1
+        slash = end - 1
+        while slash >= start and body[slash] == 92:
+            slash -= 1
+        if (end - slash - 1) % 2 == 0:
+            return end + 1
+        cursor = end + 1
+
+
+def _has_large_json_string(body):
+    cursor = 0
+    for _ in range(128):
+        start = body.find(b'"', cursor)
+        if start < 0:
+            return False
+        cursor = _json_string_end(body, start)
+        if cursor - start > _JSON_DECODE_GROUP_BYTES:
+            return True
+    return False
+
+
+class _ChunkedJSONDecoder:
+    """Use the stdlib C decoder for groups and bounded long-string pieces.
+
+    Only large strings take this path. Keys remain ordinary strings; groups
+    preserve numeric precision, duplicate-key order and stdlib escape handling.
+    The span cache holds at most 128 integer pairs, avoiding repeated scans of
+    the same multi-MiB string through its enclosing containers.
+    """
+    __slots__ = ('body', 'view', 'ascii', 'spans')
+
+    def __init__(self, body):
+        self.body = body
+        self.view = memoryview(body)
+        self.ascii = body.isascii()
+        self.spans = {}
+
+    def remember(self, start, end):
+        if end - start > _JSON_DECODE_GROUP_BYTES:
+            if len(self.spans) >= 128:
+                self.spans.pop(next(iter(self.spans)))
+            self.spans[start] = end
+
+    def ws(self, pos):
+        return _JSON_WS_BYTES_RE.match(self.body, pos).end()
+
+    def end(self, start):
+        cached = self.spans.get(start)
+        if cached is not None:
+            return cached
+        char = self.body[start]
+        if char == 34:
+            end = _json_string_end(self.body, start)
+            self.remember(start, end)
+            return end
+        if char in (123, 91):
+            stack = [(start, char)]
+            cursor = start + 1
+            while stack:
+                token = _JSON_STRUCTURAL_BYTES_RE.search(self.body, cursor)
+                if token is None:
+                    raise ValueError('unterminated container')
+                pos = token.start()
+                char = self.body[pos]
+                if char == 34:
+                    cursor = _json_string_end(self.body, pos)
+                    self.remember(pos, cursor)
+                    continue
+                if char in (123, 91):
+                    stack.append((pos, char))
+                    if len(stack) > 1024:
+                        raise RecursionError('JSON nesting')
+                else:
+                    opened, kind = stack.pop()
+                    if char != (125 if kind == 123 else 93):
+                        raise ValueError('mismatched container')
+                    self.remember(opened, pos + 1)
+                cursor = pos + 1
+            return cursor
+        token = _JSON_SCALAR_END_BYTES_RE.search(self.body, start)
+        return token.start() if token is not None else len(self.body)
+
+    def load(self, start, end, opening='', closing=''):
+        return json.loads(opening + str(self.view[start:end], 'utf-8') + closing)
+
+    def string(self, start, end, *, chunked=True):
+        if self.body.find(b'\\', start + 1, end - 1) < 0:
+            if end - start <= _JSON_DECODE_GROUP_BYTES:
+                return self.load(start, end)
+            pieces = []
+            cursor = start + 1
+            limit = end - 1
+            while cursor < limit:
+                boundary = min(cursor + _JSON_DECODE_CHUNK_BYTES, limit)
+                if boundary < limit and not self.ascii:
+                    while boundary > cursor and self.body[boundary] & 192 == 128:
+                        boundary -= 1
+                if boundary <= cursor:
+                    raise ValueError('invalid string boundary')
+                text = str(self.view[cursor:boundary], 'ascii' if self.ascii else 'utf-8')
+                # C scanstring validates ASCII controls in bounded pieces. For
+                # Unicode, decoding bounded pieces also avoids UTF-8 decoder's
+                # worst-case full-document UCS4 capacity and resize copies.
+                piece, _ = json.decoder.scanstring(text + '"', 0)
+                # Valid unescaped UTF-8 is already the exact canonical string
+                # interior. Copy bounded bytes, discarding the Unicode scratch
+                # piece, so sending needs neither joining nor re-encoding it.
+                pieces.append(bytes(self.view[cursor:boundary]) if chunked else piece)
+                cursor = boundary
+            return _ChunkedJSONText(pieces) if chunked else ''.join(pieces)
+        if end - start <= _JSON_DECODE_GROUP_BYTES:
+            return self.load(start, end)
+        pieces = []
+        requires_ascii = False
+        cursor = start + 1
+        limit = end - 1
+        while cursor < limit:
+            boundary = min(cursor + _JSON_DECODE_CHUNK_BYTES, limit)
+            if boundary < limit:
+                while boundary > cursor and self.body[boundary] & 192 == 128:
+                    boundary -= 1
+                slash = self.body.rfind(b'\\', max(cursor, boundary - 6), boundary)
+                if slash >= 0:
+                    before = slash - 1
+                    while before >= cursor and self.body[before] == 92:
+                        before -= 1
+                    if (slash - before) % 2:
+                        escape_end = slash + (6 if self.body[slash + 1] == 117 else 2)
+                        if escape_end > boundary:
+                            boundary = slash
+                # JSON combines an escaped high/low surrogate pair. Never
+                # split that pair into two independent stdlib string decodes.
+                if boundary >= cursor + 6 and self.body[boundary - 6:boundary - 4] == b'\\u':
+                    high = self.body[boundary - 4:boundary]
+                    low = self.body[boundary + 2:boundary + 6]
+                    if self.body[boundary:boundary + 2] == b'\\u':
+                        try:
+                            pair = 0xD800 <= int(high, 16) <= 0xDBFF and 0xDC00 <= int(low, 16) <= 0xDFFF
+                        except ValueError:
+                            pair = False
+                        if pair:
+                            slash = boundary - 6
+                            before = slash - 1
+                            while before >= cursor and self.body[before] == 92:
+                                before -= 1
+                            if (slash - before) % 2:
+                                boundary -= 6
+            if boundary <= cursor:
+                raise ValueError('invalid string boundary')
+            piece = self.load(cursor, boundary, '"', '"')
+            if chunked:
+                try:
+                    canonical = json.encoder.encode_basestring(piece).encode('utf-8')
+                except UnicodeEncodeError:
+                    requires_ascii = True
+                    canonical = json.encoder.encode_basestring_ascii(piece).encode('ascii')
+                pieces.append(canonical[1:-1])
+            else:
+                pieces.append(piece)
+            cursor = boundary
+        return _ChunkedJSONText(pieces, requires_ascii) if chunked else ''.join(pieces)
+
+    def value(self, start, end):
+        if end - start <= _JSON_DECODE_GROUP_BYTES:
+            return self.load(start, end)
+        char = self.body[start]
+        if char == 34:
+            return self.string(start, end)
+        if char == 91:
+            return self.array(start, end)
+        if char == 123:
+            return self.object(start, end)
+        return self.load(start, end)
+
+    def array(self, start, end):
+        result = []
+        cursor = self.ws(start + 1)
+        group_start = group_end = None
+        def flush():
+            nonlocal group_start
+            if group_start is not None:
+                result.extend(self.load(group_start, group_end, '[', ']'))
+                group_start = None
+        if cursor == end - 1 and self.body[cursor] == 93:
+            return result
+        while cursor < end - 1:
+            value_end = self.end(cursor)
+            if value_end > end - 1:
+                raise ValueError('array boundary')
+            if value_end - cursor > _JSON_DECODE_GROUP_BYTES:
+                flush()
+                result.append(self.value(cursor, value_end))
+            else:
+                if group_start is not None and value_end - group_start > _JSON_DECODE_GROUP_BYTES:
+                    flush()
+                if group_start is None:
+                    group_start = cursor
+                group_end = value_end
+            cursor = self.ws(value_end)
+            if cursor == end - 1 and self.body[cursor] == 93:
+                flush()
+                return result
+            if self.body[cursor] != 44:
+                raise ValueError('array comma')
+            cursor = self.ws(cursor + 1)
+        raise ValueError('array trailing comma')
+
+    def object(self, start, end):
+        result = {}
+        cursor = self.ws(start + 1)
+        group_start = group_end = None
+        def flush():
+            nonlocal group_start
+            if group_start is not None:
+                result.update(self.load(group_start, group_end, '{', '}'))
+                group_start = None
+        if cursor == end - 1 and self.body[cursor] == 125:
+            return result
+        while cursor < end - 1:
+            if self.body[cursor] != 34:
+                raise ValueError('object key')
+            key_end = _json_string_end(self.body, cursor)
+            colon = self.ws(key_end)
+            if self.body[colon] != 58:
+                raise ValueError('object colon')
+            value_start = self.ws(colon + 1)
+            value_end = self.end(value_start)
+            if value_end > end - 1:
+                raise ValueError('object boundary')
+            if value_end - cursor > _JSON_DECODE_GROUP_BYTES:
+                flush()
+                key = self.string(cursor, key_end, chunked=False)
+                result[key] = self.value(value_start, value_end)
+            else:
+                if group_start is not None and value_end - group_start > _JSON_DECODE_GROUP_BYTES:
+                    flush()
+                if group_start is None:
+                    group_start = cursor
+                group_end = value_end
+            cursor = self.ws(value_end)
+            if cursor == end - 1 and self.body[cursor] == 125:
+                flush()
+                return result
+            if self.body[cursor] != 44:
+                raise ValueError('object comma')
+            cursor = self.ws(cursor + 1)
+        raise ValueError('object trailing comma')
+
+    def decode(self):
+        start = self.ws(0)
+        end = self.end(start)
+        if self.ws(end) != len(self.body):
+            raise ValueError('trailing bytes')
+        return self.value(start, end)
+
+
 _JSON_GROUP_CHARACTERS = 262144
 _JSON_STRING_CHARACTERS = 65536
 
@@ -1906,14 +2229,20 @@ def _json_weight(value: Any, limit: int = _JSON_GROUP_CHARACTERS) -> int:
     if isinstance(value, dict):
         size = 2
         for key, item in value.items():
-            size += len(key) + 4 + _json_weight(item, limit - size)
+            # Message histories have many short string leaves. Size those here
+            # rather than making a Python recursive call for every field.
+            weight = (len(item) * (1 if item.isascii() else 4) + 2
+                      if isinstance(item, str) else _json_weight(item, limit - size))
+            size += len(key) + 4 + weight
             if size > limit:
                 break
         return size
     if isinstance(value, list):
         size = 2
         for item in value:
-            size += 1 + _json_weight(item, limit - size)
+            weight = (len(item) * (1 if item.isascii() else 4) + 2
+                      if isinstance(item, str) else _json_weight(item, limit - size))
+            size += 1 + weight
             if size > limit:
                 break
         return size
@@ -1921,6 +2250,10 @@ def _json_weight(value: Any, limit: int = _JSON_GROUP_CHARACTERS) -> int:
         # Upper-bound decimal digits without constructing a potentially huge
         # decimal string. Booleans retain the scalar bound below.
         return value.bit_length() * 30103 // 100000 + 2 + (value < 0)
+    if isinstance(value, _ChunkedJSONText):
+        # Force parent containers through the bounded writer as well: the C
+        # encoder cannot consume our internal, already-decoded string pieces.
+        return limit + 1
     return 24
 
 
@@ -1928,9 +2261,12 @@ def _encode_large_responses_payload(payload: dict, *, ensure_ascii: bool = False
     """Keep the C encoder for groups, avoiding a full-size intermediate string."""
     output = io.BytesIO()
     string_encoder = json.encoder.encode_basestring_ascii if ensure_ascii else json.encoder.encode_basestring
+    # These trees originate in JSON and the sanitizer only copies/removes
+    # containers. They are acyclic, so per-node circular markers add no value.
+    group_encoder = json.JSONEncoder(ensure_ascii=ensure_ascii, check_circular=False, separators=(",", ":"))
 
     def packed(value: Any) -> str:
-        return json.dumps(value, ensure_ascii=ensure_ascii, separators=(",", ":"))
+        return group_encoder.encode(value)
 
     def write_string(value: str) -> None:
         if len(value) <= _JSON_STRING_CHARACTERS:
@@ -1947,6 +2283,20 @@ def _encode_large_responses_payload(payload: dict, *, ensure_ascii: bool = False
             weight = _json_weight(value)
         if weight <= _JSON_GROUP_CHARACTERS:
             output.write(packed(value).encode("utf-8"))
+        elif isinstance(value, _ChunkedJSONText):
+            if value.requires_ascii and not ensure_ascii:
+                # Keep the existing whole-document ASCII fallback for a lone
+                # surrogate, including other keys and ordinary string values.
+                raise UnicodeEncodeError('utf-8', '\ud800', 0, 1, 'surrogates not allowed')
+            output.write(b'"')
+            for chunk in value.chunks:
+                if not ensure_ascii or (chunk.isascii() and b'\x7f' not in chunk):
+                    output.write(chunk)
+                else:
+                    decoded = json.loads('"' + chunk.decode('utf-8') + '"')
+                    text = string_encoder(decoded).encode('ascii')
+                    output.write(memoryview(text)[1:-1])
+            output.write(b'"')
         elif isinstance(value, str):
             write_string(value)
         elif isinstance(value, (dict, list)):
@@ -2059,10 +2409,22 @@ def _payload_needs_image_pruning(body: bytes, max_images: int) -> bool:
             cursor = quote + 1
 
 
-def _decode_responses_payload(body: bytes) -> Optional[dict]:
+def _decode_responses_payload(body: bytes, *, chunked: bool = False) -> Optional[dict]:
     try:
-        payload = json.loads(body.decode("utf-8"))
+        # Small/dense documents keep the C decoder. A capped quote probe avoids
+        # walking every historical message just to choose an encoding strategy.
+        payload = (_ChunkedJSONDecoder(body).decode()
+                   if chunked and len(body) >= LARGE_REQUEST_BODY_BYTES and _has_large_json_string(body)
+                   else json.loads(body.decode("utf-8")))
         return payload if isinstance(payload, dict) else None
+    except RecursionError:
+        # Our Python container frames reach their recursion limit before the C
+        # decoder. Preserve the existing acceptance boundary for deep inputs.
+        try:
+            payload = json.loads(body.decode("utf-8"))
+            return payload if isinstance(payload, dict) else None
+        except Exception:
+            return None
     except Exception:
         return None
 
@@ -2071,6 +2433,14 @@ def _compress_request_gzip(content: bytes) -> bytes:
     if _native_gzip is not None:
         return _native_gzip.compress(content, compresslevel=1, mtime=0)
     return gzip.compress(content, compresslevel=1, mtime=0)
+
+
+def _decompress_proxy_gzip(content: bytes, source_size: int) -> bytes:
+    """Reconstruct our single gzip member, reserving its known original size."""
+    if _native_gzip is not None:
+        codec = _native_gzip.igzip_lib
+        return codec.decompress(content, flag=codec.DECOMP_GZIP, bufsize=source_size)
+    return zlib.decompress(content, wbits=31, bufsize=source_size)
 
 
 class _GzipPool:
@@ -2168,18 +2538,27 @@ def _record_gzip_rejection(headers: Mapping[str, str]) -> None:
 
 
 def _record_upload_observation(content: bytes, headers: Mapping[str, str], elapsed: float,
-                               response: httpx.Response) -> None:
-    # Real, large, unencoded requests only. Time includes RTT and upstream work,
-    # so bytes/time is deliberately a conservative lower bound, not a speed test.
+                               response: httpx.Response, *, header_wait_s: Optional[float] = None) -> None:
+    # Real, large, unencoded requests only, measured between HTTPcore's send-body
+    # events. Ignore small uploads that socket buffers can absorb immediately;
+    # even larger writes remain an estimate, not a bandwidth test. Cap automatic
+    # hints conservatively; an explicit rate override bypasses this ceiling.
     if (not REQUEST_GZIP_ENABLED or REQUEST_GZIP_UPLOAD_MBIT_S > 0
-            or len(content) < 524288 or headers.get("content-encoding") or elapsed <= 0
+            or len(content) < UPLOAD_OBSERVATION_MIN_BYTES or headers.get("content-encoding") or elapsed <= 0
+            or header_wait_s is None or not math.isfinite(elapsed) or not math.isfinite(header_wait_s)
             or response.status_code != 200 or "network_stream" not in response.extensions):
         return
     key = _gzip_capability_key(headers)
+    if header_wait_s > max(0.05, elapsed * 4):
+        # A quick write followed by long header waiting cannot distinguish
+        # queued delivery from upstream work. Do not train from it or retain a
+        # stale fast hint. Header waiting is a confidence check, never bandwidth.
+        _UPLOAD_OBSERVATIONS.pop(key, None)
+        return
     now = time.monotonic()
     samples = _UPLOAD_OBSERVATIONS.get(key, [])
     samples = [(at, rate) for at, rate in samples if now - at < GZIP_PROFILE_TTL_S]
-    samples.append((now, min(100000.0, len(content) * 8 / elapsed / 1e6)))
+    samples.append((now, min(UPLOAD_ESTIMATE_MAX_MBIT_S, len(content) * 8 / elapsed / 1e6)))
     _UPLOAD_OBSERVATIONS[key] = samples[-6:]
     _UPLOAD_OBSERVATIONS.move_to_end(key)
     while len(_UPLOAD_OBSERVATIONS) > REQUEST_GZIP_CACHE_SIZE:
@@ -2316,7 +2695,7 @@ async def _prepare_responses_request(request: Request):
 async def _handle_responses(request: Request, body_bytes: bytes, source_headers: Dict[str, str],
                             rate_state: Dict[str, Any]):
     with TIMINGS.measure("payload_inspect"):
-        body_json = (_decode_responses_payload(body_bytes)
+        body_json = (_decode_responses_payload(body_bytes, chunked=True)
                      if _payload_needs_image_pruning(body_bytes, MAX_IMAGES_PER_REQUEST) else None)
         headers = source_headers
         upstream_url = f"{UPSTREAM}/v1/responses"
@@ -2324,6 +2703,8 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
         active_payload = body_json
         req_content = body_bytes
         wire_content = None
+        proxy_added_gzip = False
+        compressed_plain_size = 0
         fallback_active = False
         gzip_fallback_active = False
 
@@ -2346,6 +2727,7 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
 
         # Any fallback decodes the current request; removed images are not needed.
         body_bytes = b""
+        body_json = active_payload = None
 
     retry_start = time.monotonic()
     transient_retries = 0
@@ -2353,12 +2735,20 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
     max_mismatch_retries = 3
     last_failure_response: Optional[Response] = None
 
+    def plain_content() -> bytes:
+        nonlocal req_content
+        if req_content is None:
+            # Only our own gzip is reconstructed, and only when recovery or a
+            # 415 needs the exact current JSON. Normal retries replay gzip as is.
+            req_content = _decompress_proxy_gzip(wire_content, compressed_plain_size)
+        return req_content
+
     def activate_stateless_fallback(source_label: str, detail: str) -> bool:
-        nonlocal fallback_active, active_payload, body_json, mismatch_attempts, req_content, wire_content
+        nonlocal fallback_active, active_payload, body_json, mismatch_attempts, req_content, wire_content, proxy_added_gzip
         STATS["resource_mismatches_caught"] += 1
         logger.warning("[Resource Mismatch] %s: %s", source_label, detail[:160])
         if not fallback_active and body_json is None:
-            body_json = _decode_responses_payload(req_content)
+            body_json = _decode_responses_payload(plain_content(), chunked=True)
         if not fallback_active and body_json is not None:
             fallback_active = True
             STATS["stateless_fallbacks_applied"] += 1
@@ -2370,6 +2760,7 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
             # removed state items are no longer needed during serialization.
             req_content = b""
             wire_content = body_json = None
+            proxy_added_gzip = False
             if source_size >= LARGE_REQUEST_BODY_BYTES:
                 request._body = b""
             req_content = _encode_responses_payload(active_payload, source_size=source_size)
@@ -2419,9 +2810,17 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
 
     while True:
         if wire_content is None:
+            payload_size = len(req_content)
             with TIMINGS.measure("payload_prepare"):
                 wire_content, headers = await _prepare_upstream_content(req_content, source_headers)
-            if REQUEST_GZIP_ENABLED and len(req_content) >= REQUEST_GZIP_MIN_BYTES and await _client_disconnected(request):
+            proxy_added_gzip = wire_content is not req_content
+            if proxy_added_gzip:
+                # Compressed bytes are sufficient for every normal retry. Drop
+                # both owners of the original before admission/headers waits.
+                compressed_plain_size = payload_size
+                req_content = None
+                request._body = b""
+            if REQUEST_GZIP_ENABLED and payload_size >= REQUEST_GZIP_MIN_BYTES and await _client_disconnected(request):
                 return Response(status_code=499)
 
         try:
@@ -2443,7 +2842,6 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
         stream_handed_off = False
         try:
             client = get_shared_client()
-            upstream_started = time.perf_counter()
             pending_response = await _await_upstream_work(request, _send_with_transport_retry(
                 client,
                 method="POST",
@@ -2456,7 +2854,6 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
             if pending_response is _CLIENT_DISCONNECTED:
                 return Response(status_code=499)
             resp = pending_response
-            _record_upload_observation(wire_content, headers, time.perf_counter() - upstream_started, resp)
 
             resp_headers = _clean_response_headers(resp.headers)
             content_type = resp.headers.get("content-type", "")
@@ -2573,14 +2970,15 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
 
             if (
                 resp.status_code == 415
-                and wire_content is not req_content
+                and proxy_added_gzip
                 and headers.get("content-encoding") == "gzip"
             ):
                 # Retry only proxy-added encoding, using the current payload.
                 # Keep subsequent retries and stateless recovery plain as well.
                 gzip_fallback_active = True
                 _record_gzip_rejection(source_headers)
-                wire_content = req_content
+                wire_content = plain_content()
+                proxy_added_gzip = False
                 headers = source_headers
                 STATS["gzip_fallbacks"] += 1
                 logger.warning("[Request Compression] Upstream HTTP 415; retrying without proxy-added gzip")

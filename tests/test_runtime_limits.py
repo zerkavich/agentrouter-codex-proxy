@@ -287,13 +287,13 @@ class GzipCapabilityTests(unittest.TestCase):
         body = b"x" * 1000000
         headers = {"authorization": "Bearer synthetic"}
         fake = httpx.Response(200)
-        proxy._record_upload_observation(body, headers, 0.1, fake)
+        proxy._record_upload_observation(body, headers, 0.1, fake, header_wait_s=0.01)
         self.assertEqual(proxy._upload_estimate(headers), 0)
         real_metadata = httpx.Response(200, extensions={"network_stream": object()})
         with mock.patch.multiple(proxy, REQUEST_GZIP_ENABLED=True, REQUEST_GZIP_UPLOAD_MBIT_S=0), mock.patch.object(proxy.time, "monotonic", return_value=1000):
-            proxy._record_upload_observation(body, headers, 0.1, real_metadata)
+            proxy._record_upload_observation(body, headers, 0.1, real_metadata, header_wait_s=0.01)
             self.assertEqual(proxy._upload_estimate(headers), 0)
-            proxy._record_upload_observation(body, headers, 0.2, real_metadata)
+            proxy._record_upload_observation(body, headers, 0.2, real_metadata, header_wait_s=0.01)
             self.assertEqual(proxy._upload_estimate(headers), 40)
             self.assertEqual(proxy._upload_estimate({"authorization": "Bearer other"}), 0)
         with mock.patch.object(proxy, "REQUEST_GZIP_UPLOAD_MBIT_S", 0), mock.patch.object(proxy.time, "monotonic", return_value=1000 + proxy.GZIP_PROFILE_TTL_S + 1):
@@ -304,10 +304,47 @@ class GzipCapabilityTests(unittest.TestCase):
         headers = {"authorization": "Bearer synthetic"}
         metadata = httpx.Response(200, extensions={"network_stream": object()})
         with mock.patch.multiple(proxy, REQUEST_GZIP_ENABLED=False, REQUEST_GZIP_UPLOAD_MBIT_S=0):
-            proxy._record_upload_observation(body, headers, 0.1, metadata)
+            proxy._record_upload_observation(body, headers, 0.1, metadata, header_wait_s=0.01)
         with mock.patch.multiple(proxy, REQUEST_GZIP_ENABLED=True, REQUEST_GZIP_UPLOAD_MBIT_S=100):
-            proxy._record_upload_observation(body, headers, 0.1, metadata)
+            proxy._record_upload_observation(body, headers, 0.1, metadata, header_wait_s=0.01)
         self.assertFalse(proxy._UPLOAD_OBSERVATIONS)
+
+    def test_small_uploads_do_not_train_from_socket_buffer_timing(self):
+        metadata = httpx.Response(200, extensions={"network_stream": object()})
+        with mock.patch.multiple(proxy, REQUEST_GZIP_ENABLED=True, REQUEST_GZIP_UPLOAD_MBIT_S=0):
+            proxy._record_upload_observation(b"x" * 256000, {}, 0.001, metadata, header_wait_s=0.01)
+        self.assertFalse(proxy._UPLOAD_OBSERVATIONS)
+
+    def test_buffered_writes_have_a_conservative_ceiling_without_limiting_an_override(self):
+        body = b"x" * 1000000
+        metadata = httpx.Response(200, extensions={"network_stream": object()})
+        with mock.patch.multiple(proxy, REQUEST_GZIP_ENABLED=True, REQUEST_GZIP_UPLOAD_MBIT_S=0):
+            for _ in range(2):
+                proxy._record_upload_observation(body, {}, 0.0001, metadata, header_wait_s=0.01)
+            self.assertEqual(proxy._upload_estimate({}), 1000)
+        with mock.patch.object(proxy, "REQUEST_GZIP_UPLOAD_MBIT_S", 10000):
+            self.assertEqual(proxy._upload_estimate({}), 10000)
+
+    def test_long_unaccounted_header_wait_clears_fast_hints_without_training_a_slow_rate(self):
+        body = b"x" * 1000000
+        metadata = httpx.Response(200, extensions={"network_stream": object()})
+        with mock.patch.multiple(proxy, REQUEST_GZIP_ENABLED=True, REQUEST_GZIP_UPLOAD_MBIT_S=0):
+            for _ in range(2):
+                proxy._record_upload_observation(body, {}, 0.001, metadata, header_wait_s=0.01)
+            self.assertEqual(proxy._upload_estimate({}), 1000)
+            proxy._record_upload_observation(body, {}, 0.001, metadata, header_wait_s=1)
+            self.assertEqual(proxy._upload_estimate({}), 0)
+            self.assertFalse(proxy._UPLOAD_OBSERVATIONS)
+            for _ in range(2):
+                proxy._record_upload_observation(body, {}, 0.001, metadata)
+            self.assertFalse(proxy._UPLOAD_OBSERVATIONS)
+
+    def test_body_backpressure_supplies_a_rate_without_adding_header_wait(self):
+        metadata = httpx.Response(200, extensions={"network_stream": object()})
+        with mock.patch.multiple(proxy, REQUEST_GZIP_ENABLED=True, REQUEST_GZIP_UPLOAD_MBIT_S=0):
+            for _ in range(2):
+                proxy._record_upload_observation(b"x" * 1000000, {}, 0.2, metadata, header_wait_s=0.4)
+            self.assertEqual(proxy._upload_estimate({}), 40)
 
 
 class RatePartitionTests(unittest.IsolatedAsyncioTestCase):

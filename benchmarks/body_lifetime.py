@@ -20,10 +20,11 @@ import subprocess
 import sys
 import time
 import tracemalloc
+import zlib
 
 
 CASES = ("large_image", "thirty_images", "large_text", "resource_mismatch",
-         "resource_mismatch_text", "resource_mismatch_history")
+         "resource_mismatch_text", "resource_mismatch_history", "gzip_rejected")
 VARIANTS = ("baseline", "candidate")
 
 
@@ -75,6 +76,7 @@ async def worker(args):
     uploaded = asyncio.Event()
     send_headers = asyncio.Event()
     uploads = []
+    wire_uploads = []
     current_case = None
 
     async def serve(reader, writer):
@@ -88,17 +90,36 @@ async def worker(args):
             fields = {name.lower(): value.strip() for name, value in
                       (line.split(b":", 1) for line in headers.split(b"\r\n")[1:] if b":" in line)}
             remaining = int(fields[b"content-length"])
+            wire_uploads.append(remaining)
             if b"transfer-encoding" in fields:
                 raise RuntimeError("Unexpected chunked request upload")
             digest = hashlib.sha256()
+            decoder = zlib.decompressobj(31) if fields.get(b"content-encoding") == b"gzip" else None
             while remaining:
                 chunk = await reader.readexactly(min(remaining, 65536))
-                digest.update(chunk)
                 remaining -= len(chunk)
+                if decoder is None:
+                    digest.update(chunk)
+                else:
+                    # The fixture shares the measured process. Never inflate a
+                    # tiny gzip upload into an extra full-body fixture allocation.
+                    while chunk:
+                        digest.update(decoder.decompress(chunk, 65536))
+                        chunk = decoder.unconsumed_tail
+            if decoder is not None and (not decoder.eof or decoder.unused_data):
+                raise RuntimeError("Invalid gzip upload")
             uploads.append(digest.hexdigest())
             if current_case.startswith("resource_mismatch") and len(uploads) == 1:
                 error = b'{"error":{"message":"The requested item was created under a different OpenAI resource."}}'
                 writer.write(b"HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: "
+                             + str(len(error)).encode() + b"\r\nConnection: close\r\n\r\n" + error)
+                await writer.drain()
+                return
+            if current_case == "gzip_rejected" and len(uploads) == 1:
+                if fields.get(b"content-encoding") != b"gzip":
+                    raise RuntimeError("Expected proxy-added gzip before rejection")
+                error = b'{"error":{"message":"Unsupported content encoding"}}'
+                writer.write(b"HTTP/1.1 415 Unsupported Media Type\r\nContent-Type: application/json\r\nContent-Length: "
                              + str(len(error)).encode() + b"\r\nConnection: close\r\n\r\n" + error)
                 await writer.drain()
                 return
@@ -116,7 +137,7 @@ async def worker(args):
 
     server = await asyncio.start_server(serve, "127.0.0.1", 0)
     proxy.UPSTREAM = f"http://127.0.0.1:{server.sockets[0].getsockname()[1]}"
-    proxy.REQUEST_GZIP_ENABLED = False
+    proxy.REQUEST_GZIP_ENABLED = args.gzip == 'on'
     client = httpx.AsyncClient(timeout=30, trust_env=False)
     proxy._SHARED_CLIENT = client
     result = {}
@@ -128,6 +149,11 @@ async def worker(args):
             mode = "memory" if iteration == 0 else "timing"
             current_case = args.case
             uploads.clear()
+            wire_uploads.clear()
+            if args.gzip == 'on':
+                # Every 415 sample begins with the same capability state. Cost
+                # profiles and hints cannot leak between measurement iterations.
+                proxy.reset_compression_state()
             uploaded.clear()
             send_headers.clear()
             response = None
@@ -169,12 +195,14 @@ async def worker(args):
                     gc.collect()
                     streaming, peak = tracemalloc.get_traced_memory()
                     memory.update(committed_stream_bytes=streaming, peak_bytes=peak)
-                expected_uploads = ([input_hash, expected_hash] if args.case.startswith("resource_mismatch") else [input_hash])
+                expected_uploads = ([input_hash, expected_hash] if args.case.startswith("resource_mismatch")
+                                    or args.case == "gzip_rejected" else [input_hash])
                 if uploads != expected_uploads or response.upstream_response.is_closed:
                     raise RuntimeError("Upload hash or open-stream verification failed")
                 sample = {"input_bytes": input_size, "input_sha256": input_hash,
                           "final_upload_sha256": expected_hash, "upstream_attempts": len(uploads),
-                          "hashes_verified": True, **memory}
+                          "hashes_verified": True, "upstream_wire_bytes": sum(wire_uploads),
+                          "final_wire_bytes": wire_uploads[-1], **memory}
                 if mode == "timing":
                     sample.update(final_upload_ms=uploaded_ms, response_ready_ms=ready_ms)
                     timings.append(sample)
@@ -198,6 +226,8 @@ async def worker(args):
         result["timing_samples"] = timings
         return result
     finally:
+        if getattr(proxy, '_GZIP_POOL', None) is not None:
+            proxy._GZIP_POOL.shutdown()
         await client.aclose()
         server.close()
         await server.wait_closed()
@@ -216,7 +246,8 @@ def main():
     parser.add_argument("--samples", type=int, default=6, help="Even number of adjacent AB/BA pairs per case")
     parser.add_argument("--size-mib", type=int, default=32)
     parser.add_argument("--timing-samples", type=int, default=10, help="Untraced uploads per isolated worker")
-    parser.add_argument("--cases", nargs='+', choices=CASES, default=CASES,
+    parser.add_argument("--gzip", choices=('off', 'on'), default='off')
+    parser.add_argument("--cases", nargs='+', choices=CASES, default=CASES[:-1],
                         help="Synthetic cases to measure (default: all)")
     parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--source", type=Path, help=argparse.SUPPRESS)
@@ -227,6 +258,8 @@ def main():
         return 0
     if args.samples < 2 or args.samples % 2 or not 1 <= args.size_mib <= 64 or not 1 <= args.timing_samples <= 100:
         parser.error("Use an even pair count >= 2, a size of 1-64 MiB and 1-100 timing samples")
+    if 'gzip_rejected' in args.cases and args.gzip != 'on':
+        parser.error('The gzip_rejected case requires --gzip on')
     if len(set(args.cases)) != len(args.cases):
         parser.error("Select each case once")
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -256,6 +289,7 @@ def main():
                "benchmark_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                "python": sys.version, "samples": args.samples, "size_mib": args.size_mib,
                "timing_samples_per_worker": args.timing_samples,
+               "request_gzip": args.gzip,
                "cases": list(args.cases),
                "real_model_calls": 0, "memory_semantics": "Live Python allocations including fixture; not RSS",
                "method": "Isolated processes in adjacent AB/BA order; warmed TCP backend; separate untraced timing run",
@@ -275,7 +309,7 @@ def main():
                     for variant in order:
                         completed = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--worker",
                             "--source", str(folder / variant), "--case", case, "--size-mib", str(args.size_mib),
-                            "--timing-samples", str(args.timing_samples)],
+                            "--timing-samples", str(args.timing_samples), "--gzip", args.gzip],
                             cwd=folder / variant, env=environment, stdin=subprocess.DEVNULL,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60,
                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
@@ -298,6 +332,7 @@ def main():
                 for key in (("waiting_headers_bytes", "committed_stream_bytes", "peak_bytes") if mode == "memory" else
                             ("final_upload_ms", "response_ready_ms"))} for mode in ("memory", "timing")} for variant in VARIANTS}
             summary[case]["input_bytes"] = rows[0]["baseline"]["memory"]["input_bytes"]
+            summary[case]["upstream_wire_bytes"] = {variant: rows[0][variant]['memory']['upstream_wire_bytes'] for variant in VARIANTS}
             summary[case]["median_paired_ready_saved_ms"] = statistics.median(
                 row["baseline"]["timing"]["response_ready_ms"] - row["candidate"]["timing"]["response_ready_ms"] for row in rows)
         (folder / "comparison.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")

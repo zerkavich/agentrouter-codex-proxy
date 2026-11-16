@@ -213,10 +213,11 @@ class PayloadForwardingTests(unittest.IsolatedAsyncioTestCase):
         before = proxy.STATS["gzip_payloads"]
         with mock.patch.object(proxy, "REQUEST_GZIP_ENABLED", True), mock.patch.object(
             proxy, "_gzip_if_worthwhile", wraps=proxy._gzip_if_worthwhile,
-        ) as compress:
+        ) as compress, mock.patch.object(proxy, '_decompress_proxy_gzip', wraps=proxy._decompress_proxy_gzip) as inflate:
             response = await self.forward(body)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(compress.call_count, 1)
+        self.assertEqual(inflate.call_count, 0, 'Normal retries must not inflate proxy gzip')
         self.assertEqual(self.encodings, ["gzip", "gzip"])
         self.assertEqual(self.requests[0][0], self.requests[1][0])
         self.assertEqual(gzip.decompress(self.requests[0][0]), body)

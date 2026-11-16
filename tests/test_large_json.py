@@ -48,6 +48,11 @@ class LargeJsonTests(unittest.TestCase):
         with mock.patch.object(proxy, '_encode_large_responses_payload', side_effect=AssertionError('large path called')):
             self.assertEqual(proxy._encode_responses_payload({'input': 'small'}, source_size=100), b'{"input":"small"}')
 
+    def test_shared_acyclic_parts_keep_each_serialized_occurrence(self):
+        part = {'type': 'input_text', 'text': 'Привет 🌍' * 2000}
+        payload = {'input': [{'content': [part, part]}] * 100}
+        self.assertEqual(proxy._encode_responses_payload(payload, source_size=2**20), previous_encode(payload))
+
     def test_differential_mixed_json_with_forced_small_groups(self):
         rng = random.Random(1611192)
         scalars = [None, True, False, 0, -0.0, 2**100, -2**63, 1.23e-100, '日本語', '"\\\n\x00', '\ud800', '🌍']
