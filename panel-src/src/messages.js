@@ -1,4 +1,6 @@
 export const english = {
+  "Можно закрыть вкладку. Результат появится здесь после завершения.": "You can close this tab. The result will appear here when the job finishes.",
+  "Повторить подготовку": "Retry preparation",
   "В работе": "In progress",
   "{v0} КиБ": "{v0} KiB",
   "{v0} Б": "{v0} B",

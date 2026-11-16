@@ -33,6 +33,8 @@ class IndependentPanelTests(unittest.TestCase):
         self.worker = Worker()
         self.updating = False
         self.calls = []
+        self.prepare_release = threading.Event()
+        self.preparation_finished = threading.Event()
         owner = self
         class Upstream(BaseHTTPRequestHandler):
             def log_message(self, *args):
@@ -56,8 +58,18 @@ class IndependentPanelTests(unittest.TestCase):
                 owner.calls.append(self.path)
                 self.rfile.read(int(self.headers['Content-Length']))
                 valid = self.headers.get('X-Proxy-Control') == 'w' * 40
-                body = b'{"paused":true}' if valid else b'{"error_code":"panel_session_expired"}'
-                self.send_response(200 if valid else 403)
+                code = 200 if valid else 403
+                if valid and self.path == '/_control/api/updates/prepare':
+                    def finish():
+                        owner.prepare_release.wait(5)
+                        with owner.panel.lock:
+                            owner.panel.cache['management']['update'] = {'state': 'prepared', 'commit': 'a' * 40}
+                        owner.preparation_finished.set()
+                    threading.Thread(target=finish, daemon=True).start()
+                    body, code = b'{"state":"preparing","commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","job_id":"synthetic"}', 202
+                else:
+                    body = b'{"paused":true}' if valid else b'{"error_code":"panel_session_expired"}'
+                self.send_response(code)
                 self.send_header('Content-Length', str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
@@ -78,6 +90,7 @@ class IndependentPanelTests(unittest.TestCase):
         self.assertTrue(self.panel.responsive)
 
     def tearDown(self):
+        self.prepare_release.set()
         self.panel.close()
         self.upstream.shutdown()
         self.upstream.server_close()
@@ -121,6 +134,18 @@ class IndependentPanelTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(json.loads(body)['paused'])
         self.assertIn('/_control/api/pause', self.calls)
+
+    def test_update_job_relay_returns_before_preparation_finishes(self):
+        started = time.monotonic()
+        code, body = self.request('/_control/api/updates/prepare', {'commit': 'a' * 40})
+        self.assertEqual(code, 202)
+        self.assertEqual(json.loads(body)['state'], 'preparing')
+        self.assertLess(time.monotonic() - started, 2)
+        self.assertFalse(self.preparation_finished.is_set())
+        self.prepare_release.set()
+        self.assertTrue(self.preparation_finished.wait(3))
+        with self.panel.lock:
+            self.assertEqual(self.panel.cache['management']['update']['state'], 'prepared')
 
     def test_offline_panel_history_and_authenticated_recovery_remain_available(self):
         value = RequestRecord('POST', '/responses')

@@ -232,6 +232,49 @@ class BodyLifetimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([upload["sha256"] for upload in self.uploads],
                          [hashlib.sha256(body).hexdigest(), hashlib.sha256(expected).hexdigest()])
 
+    async def test_sanitized_body_replaces_original_before_headers(self):
+        body = self.image_body().replace(b'{"model"', b'{"previous_response_id":"resp_synthetic","model"')
+        expected = proxy._encode_responses_payload(proxy.sanitize_responses_payload(json.loads(body)))
+        expected_hash, expected_size = hashlib.sha256(expected).hexdigest(), len(expected)
+        del expected
+        self.actions = ['mismatch']
+        gc.collect()
+        tracemalloc.start(1)
+        request = self.request(body)
+        del body
+        handler = await self.start(request)
+        gc.collect()
+        retained, _ = tracemalloc.get_traced_memory()
+        self.assertEqual(self.upload_hash, expected_hash)
+        self.assertEqual(getattr(request, '_body', None), b'')
+        # Only the replayable sanitized body may remain before response headers.
+        self.assertLess(retained, expected_size + 2 * 1024 * 1024)
+        await self.response(handler)
+
+    async def test_pruned_body_replaces_removed_images_before_headers(self):
+        prefix = b'{"model":"synthetic","stream":true,"input":[{"type":"message","content":['
+        image = b'{"type":"input_image","image_url":"data:image/png;base64,' + b'A' * (2 * 1024 * 1024) + b'"}'
+        body = prefix + image + b',' + image + b']}]}'
+        del image
+        expected, count = proxy.prune_excess_images(json.loads(body), max_images=1)
+        self.assertEqual(count, 1)
+        encoded = proxy._encode_responses_payload(expected)
+        expected_size, expected_hash = len(encoded), hashlib.sha256(encoded).hexdigest()
+        del expected, encoded
+        gc.collect()
+        tracemalloc.start(1)
+        request = self.request(body)
+        del body
+        with mock.patch.object(proxy, 'MAX_IMAGES_PER_REQUEST', 1):
+            handler = await self.start(request)
+            gc.collect()
+            retained, _ = tracemalloc.get_traced_memory()
+            self.assertEqual(self.upload_hash, expected_hash)
+            self.assertEqual(getattr(request, '_body', None), b'')
+            # Current replay bytes plus a pruned tree; removed source is gone.
+            self.assertLess(retained, 2 * expected_size + 2 * 1024 * 1024)
+            await self.response(handler)
+
     async def test_gzip_rejection_replays_large_plain_body(self):
         body = self.image_body()
         expected_hash = hashlib.sha256(body).hexdigest()

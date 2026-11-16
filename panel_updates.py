@@ -256,15 +256,23 @@ def prepare_update(root, commit):
         if folder.exists():
             prepared = prepared_data(folder, root, commit)
         else:
-            folder.mkdir(parents=True, exist_ok=False)
-            archive_data = read('https://codeload.github.com/' + FORK + '/zip/' + commit, 16 * 1024 * 1024)
-            extract_candidate(archive_data, folder / 'candidate')
-            verify_candidate(folder / 'candidate', root)
-            probe = probe_candidate(folder / 'candidate')
-            prepared = {'state': 'prepared', 'commit': commit, 'version': probe['version'], 'probe_passed': True,
-                        'hashes': {name: sha(folder / 'candidate' / name) for name in REQUIRED_FILES},
-                        'prepared_at': datetime.now(timezone.utc).isoformat()}
-            atomic_json(folder / 'prepared.json', prepared)
+            folder.parent.mkdir(parents=True, exist_ok=True)
+            # Only publish a committed package after extraction and the runtime
+            # probe pass. Network/probe failures leave no poisoned cache entry.
+            with tempfile.TemporaryDirectory(prefix='prepare-' + commit[:12] + '-', dir=folder.parent) as temporary:
+                staging = Path(temporary).resolve()
+                if staging.parent != folder.parent.resolve() or not staging.name.startswith('prepare-' + commit[:12] + '-'):
+                    raise ValueError('unsafe_manifest')
+                archive_data = read('https://codeload.github.com/' + FORK + '/zip/' + commit, 16 * 1024 * 1024)
+                extract_candidate(archive_data, staging / 'candidate')
+                del archive_data
+                verify_candidate(staging / 'candidate', root)
+                probe = probe_candidate(staging / 'candidate')
+                prepared = {'state': 'prepared', 'commit': commit, 'version': probe['version'], 'probe_passed': True,
+                            'hashes': {name: sha(staging / 'candidate' / name) for name in REQUIRED_FILES},
+                            'prepared_at': datetime.now(timezone.utc).isoformat()}
+                atomic_json(staging / 'prepared.json', prepared)
+                staging.rename(folder)
         return {'state': 'prepared', 'commit': commit, 'latest_version': prepared['version'], 'install_supported': True}
     except ValueError as error:
         safe = {'update_changed_check_again', 'update_ci_not_passed', 'runtime_drift', 'unsafe_manifest',

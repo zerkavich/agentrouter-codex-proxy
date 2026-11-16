@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 import tempfile
 import time
+import threading
 import unittest
 from unittest import mock
 
@@ -15,7 +16,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from control import ControlRuntime, ProxyActivityMiddleware, attach_control, apply_saved_settings, load_settings
+from control import ControlRuntime, ProxyActivityMiddleware, attach_control, apply_saved_settings, load_settings, ControlError
 from telemetry import RuntimeTimings
 import service
 
@@ -70,6 +71,104 @@ class ControlTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('local panel', response.text)
         self.assertIn("frame-ancestors 'none'", response.headers['content-security-policy'])
         self.assertEqual(self.runtime.active, 0)
+
+    async def test_update_check_is_accepted_immediately_and_survives_request_completion(self):
+        started, release = threading.Event(), threading.Event()
+        calls = []
+        def check(root, version):
+            calls.append(version)
+            started.set()
+            release.wait(5)
+            return {'state': 'checked', 'commit': 'a' * 40, 'update_available': True}
+        with mock.patch('panel_updates.check_latest', side_effect=check):
+            try:
+                response = await asyncio.wait_for(self.post('updates/check', {}), 1)
+                self.assertEqual(response.status_code, 202)
+                identity = response.json()['job_id']
+                for _ in range(100):
+                    if started.is_set():
+                        break
+                    await asyncio.sleep(.01)
+                self.assertTrue(started.is_set())
+                self.assertFalse(self.runtime.update_task.done())
+                duplicate = await self.post('updates/check', {})
+                self.assertEqual(duplicate.json()['job_id'], identity)
+                status = (await self.client.get('/_control/api/status')).json()
+                self.assertEqual(status['management']['update']['state'], 'checking')
+                self.assertEqual((await self.client.get('/v1/models')).status_code, 200)
+            finally:
+                release.set()
+                await asyncio.wait_for(self.runtime.update_task, 5)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(self.runtime.update_info['state'], 'checked')
+        self.assertEqual(self.runtime.update_info['job_id'], identity)
+
+    async def test_preparation_joins_duplicate_and_blocks_install_restart_and_check(self):
+        started, release = threading.Event(), threading.Event()
+        commit = 'b' * 40
+        def prepare(root, sha):
+            started.set()
+            release.wait(5)
+            return {'state': 'prepared', 'commit': sha, 'latest_version': '1.9.2', 'install_supported': True}
+        self.runtime.supervised = True
+        with mock.patch('panel_updates.prepare_update', side_effect=prepare), mock.patch('panel_updates.install_supported', return_value=True):
+            try:
+                self.assertEqual((await self.post('updates/prepare', {'commit': '../invalid'})).status_code, 422)
+                first = await self.post('updates/prepare', {'commit': commit})
+                self.assertEqual(first.status_code, 202)
+                duplicate = await self.post('updates/prepare', {'commit': commit})
+                self.assertEqual(duplicate.json()['job_id'], first.json()['job_id'])
+                self.assertEqual((await self.post('updates/prepare', {'commit': 'c' * 40})).status_code, 409)
+                self.assertEqual((await self.post('updates/check', {})).status_code, 409)
+                self.assertEqual((await self.post('restart', {})).status_code, 409)
+                self.assertEqual((await self.post('updates/install', {'commit': commit})).status_code, 409)
+                self.assertFalse(self.runtime.draining)
+            finally:
+                release.set()
+                await asyncio.wait_for(self.runtime.update_task, 5)
+            prepared = await self.post('updates/prepare', {'commit': commit})
+            self.assertEqual(prepared.status_code, 200)
+            self.assertEqual(prepared.json()['state'], 'prepared')
+
+    async def test_update_failure_is_fixed_code_and_retry_starts_a_new_job(self):
+        with mock.patch('panel_updates.prepare_update', side_effect=RuntimeError('Bearer secret C:/private')):
+            first = await self.post('updates/prepare', {'commit': 'a' * 40})
+            await self.runtime.update_task
+        self.assertEqual(self.runtime.update_info['state'], 'failed')
+        self.assertEqual(self.runtime.update_info['error_code'], 'update_prepare_failed')
+        self.assertNotIn('secret', json.dumps(self.runtime.management()))
+        with mock.patch('panel_updates.prepare_update', return_value={'state': 'prepared', 'commit': 'a' * 40}):
+            second = await self.post('updates/prepare', {'commit': 'a' * 40})
+            await self.runtime.update_task
+        self.assertNotEqual(first.json()['job_id'], second.json()['job_id'])
+        self.assertNotIn('error_code', self.runtime.update_info)
+        self.assertEqual(self.runtime.update_info['state'], 'prepared')
+
+    async def test_shutdown_keeps_preparation_owned_until_thread_finishes(self):
+        started, release = threading.Event(), threading.Event()
+        def prepare(root, commit):
+            started.set()
+            release.wait(5)
+            return {'state': 'prepared', 'commit': commit}
+        with mock.patch('panel_updates.prepare_update', side_effect=prepare):
+            await self.post('updates/prepare', {'commit': 'a' * 40})
+            for _ in range(100):
+                if started.is_set():
+                    break
+                await asyncio.sleep(.01)
+            closing = asyncio.create_task(self.runtime.close())
+            try:
+                await asyncio.sleep(.03)
+                self.assertFalse(closing.done())
+                self.assertFalse(self.runtime.update_task.done())
+                self.assertTrue(self.runtime.updates_lock.locked())
+                with self.assertRaises(ControlError):
+                    self.runtime.request_update('check')
+            finally:
+                release.set()
+                await asyncio.wait_for(closing, 5)
+        self.assertEqual(self.runtime.update_info['state'], 'prepared')
+        self.assertFalse(self.runtime.updates_lock.locked())
 
     async def test_unknown_control_routes_never_reach_provider(self):
         self.assertEqual((await self.client.get('/_control/no-such-route')).status_code, 404)

@@ -1,0 +1,225 @@
+{
+  "status": "passed",
+  "started_at": "2026-11-16T15:21:27.687599+00:00",
+  "baseline_ref": "418e4e3588068ddca14b5c0e1816a2b505d3038f",
+  "runtime_sha256": {
+    "baseline": {
+      "proxy.py": "da3883f08569c3f700f357979f962226de29d5d749de69c52faa039458371b3b",
+      "telemetry.py": "916aee4d9d0005c0d6282a8707e80267f117826824334ccbf378637912a1623e",
+      "control.py": "1ed5bab66d20e74f0328559417a3945c7a8d60bd8103d7ceb3c992db9e44925f",
+      "panel_updates.py": "21d448dfbebfdc68b1d30fd6e3b249b818c8351e845860d51b7088de7ad0f992",
+      "doctor.py": "ab503763e7aa3bf2af743b91c3c3d15ec1818a5619525abd455bd418286d714b",
+      "update_guard.py": "7c00f87e2c50b8d9d95af096ced6d731d332f417e4578911bd83c12260602151"
+    },
+    "candidate": {
+      "proxy.py": "cc17abebb77ef2f618b71c772fd213943ecd3a7ba4c2fa3fa5e2f201a41fe67e",
+      "telemetry.py": "8d8f47edfa67e29517709ff1ed583ed2d6b08699c3c5f541267cbd0739969c77",
+      "control.py": "d9a1862fcd30d53ac44f2f5a5671d7f6eeaa4a4af89c863940ccce7dfe622355",
+      "panel_updates.py": "94a29884c2ca7e49a10866d792cb38e58b48207fa1eb82ad92a9cdd1ccf18562",
+      "doctor.py": "3911beb50b861de4c0040f26a60ead1b1f16ae935b6d09bb2112eeceadf29401",
+      "update_guard.py": "5d3b3fb3ed20e4d6db70fb6d4f2b3bdf5cd3f2524eacb14dc2c8aa7ba30c869f"
+    }
+  },
+  "benchmark_sha256": "a29a08c8845c282ba425433c0b0a23c1aa6f23cb6be1972b7ddee64ac099e4ae",
+  "python": "3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]",
+  "samples": 6,
+  "size_mib": 32,
+  "timing_samples_per_worker": 10,
+  "cases": [
+    "large_image",
+    "thirty_images",
+    "large_text",
+    "resource_mismatch",
+    "resource_mismatch_text",
+    "resource_mismatch_history"
+  ],
+  "real_model_calls": 0,
+  "memory_semantics": "Live Python allocations including fixture; not RSS",
+  "method": "Isolated processes in adjacent AB/BA order; warmed TCP backend; separate untraced timing run",
+  "packages": {
+    "httpx": "0.28.1",
+    "httpcore": "1.0.9",
+    "starlette": "0.41.3",
+    "anyio": "4.16.0"
+  },
+  "finished_at": "2026-11-16T15:27:56.703412+00:00",
+  "hashes_verified": true,
+  "frozen_sources_unchanged": true,
+  "summary": {
+    "large_image": {
+      "baseline": {
+        "memory": {
+          "waiting_headers_bytes": 33751730.0,
+          "committed_stream_bytes": 198756.0,
+          "peak_bytes": 67114140.0
+        },
+        "timing": {
+          "final_upload_ms": 75.00592500036873,
+          "response_ready_ms": 77.66894999986107
+        }
+      },
+      "candidate": {
+        "memory": {
+          "waiting_headers_bytes": 33751226.0,
+          "committed_stream_bytes": 198232.5,
+          "peak_bytes": 67114156.0
+        },
+        "timing": {
+          "final_upload_ms": 73.29380000101082,
+          "response_ready_ms": 75.86784999966767
+        }
+      },
+      "input_bytes": 33554582,
+      "median_paired_ready_saved_ms": 0.8228000006056391
+    },
+    "thirty_images": {
+      "baseline": {
+        "memory": {
+          "waiting_headers_bytes": 33755666.5,
+          "committed_stream_bytes": 201002.0,
+          "peak_bytes": 67117616.0
+        },
+        "timing": {
+          "final_upload_ms": 79.40399999915826,
+          "response_ready_ms": 83.078800000294
+        }
+      },
+      "candidate": {
+        "memory": {
+          "waiting_headers_bytes": 33754706.0,
+          "committed_stream_bytes": 200009.5,
+          "peak_bytes": 67117632.0
+        },
+        "timing": {
+          "final_upload_ms": 74.37704999938433,
+          "response_ready_ms": 77.1769500006485
+        }
+      },
+      "input_bytes": 33556320,
+      "median_paired_ready_saved_ms": 1.5786000003572553
+    },
+    "large_text": {
+      "baseline": {
+        "memory": {
+          "waiting_headers_bytes": 33752002.5,
+          "committed_stream_bytes": 199117.0,
+          "peak_bytes": 67113932.0
+        },
+        "timing": {
+          "final_upload_ms": 89.39387500049634,
+          "response_ready_ms": 92.77522500087798
+        }
+      },
+      "candidate": {
+        "memory": {
+          "waiting_headers_bytes": 33751045.5,
+          "committed_stream_bytes": 198199.0,
+          "peak_bytes": 67113948.0
+        },
+        "timing": {
+          "final_upload_ms": 90.30245000030845,
+          "response_ready_ms": 92.862824999429
+        }
+      },
+      "input_bytes": 33554478,
+      "median_paired_ready_saved_ms": -0.11689999791997252
+    },
+    "resource_mismatch": {
+      "baseline": {
+        "memory": {
+          "waiting_headers_bytes": 67461900.5,
+          "committed_stream_bytes": 267196.0,
+          "peak_bytes": 151191160.5
+        },
+        "timing": {
+          "final_upload_ms": 310.670724999909,
+          "response_ready_ms": 315.86274999881425
+        }
+      },
+      "candidate": {
+        "memory": {
+          "waiting_headers_bytes": 33906553.0,
+          "committed_stream_bytes": 266613.5,
+          "peak_bytes": 100858518.0
+        },
+        "timing": {
+          "final_upload_ms": 298.77592499997263,
+          "response_ready_ms": 301.4196499998434
+        }
+      },
+      "input_bytes": 33554622,
+      "median_paired_ready_saved_ms": 12.256600000910112
+    },
+    "resource_mismatch_text": {
+      "baseline": {
+        "memory": {
+          "waiting_headers_bytes": 67461760.0,
+          "committed_stream_bytes": 267247.0,
+          "peak_bytes": 282447570.5
+        },
+        "timing": {
+          "final_upload_ms": 370.24510000082955,
+          "response_ready_ms": 375.2583000004961
+        }
+      },
+      "candidate": {
+        "memory": {
+          "waiting_headers_bytes": 33906596.5,
+          "committed_stream_bytes": 266578.0,
+          "peak_bytes": 235074777.0
+        },
+        "timing": {
+          "final_upload_ms": 344.2670749991521,
+          "response_ready_ms": 347.19002499878115
+        }
+      },
+      "input_bytes": 33554516,
+      "median_paired_ready_saved_ms": 24.071250001725275
+    },
+    "resource_mismatch_history": {
+      "baseline": {
+        "memory": {
+          "waiting_headers_bytes": 67483972.0,
+          "committed_stream_bytes": 274601.5,
+          "peak_bytes": 141455051.0
+        },
+        "timing": {
+          "final_upload_ms": 389.4124250000459,
+          "response_ready_ms": 393.84797499860724
+        }
+      },
+      "candidate": {
+        "memory": {
+          "waiting_headers_bytes": 33921513.5,
+          "committed_stream_bytes": 274081.0,
+          "peak_bytes": 105587255.0
+        },
+        "timing": {
+          "final_upload_ms": 406.25462499974674,
+          "response_ready_ms": 409.393925000586
+        }
+      },
+      "input_bytes": 33561949,
+      "median_paired_ready_saved_ms": -11.865700001180812
+    }
+  },
+  "request_gzip": false,
+  "runtime_git_lf_sha256": {
+    "baseline": {
+      "proxy.py": "da3883f08569c3f700f357979f962226de29d5d749de69c52faa039458371b3b",
+      "telemetry.py": "916aee4d9d0005c0d6282a8707e80267f117826824334ccbf378637912a1623e",
+      "control.py": "1ed5bab66d20e74f0328559417a3945c7a8d60bd8103d7ceb3c992db9e44925f",
+      "panel_updates.py": "21d448dfbebfdc68b1d30fd6e3b249b818c8351e845860d51b7088de7ad0f992",
+      "doctor.py": "ab503763e7aa3bf2af743b91c3c3d15ec1818a5619525abd455bd418286d714b",
+      "update_guard.py": "7c00f87e2c50b8d9d95af096ced6d731d332f417e4578911bd83c12260602151"
+    },
+    "candidate": {
+      "proxy.py": "a55e4904b9e06ff06f36c5bb27636f10a26c0abdac926f51fb0641411e4ee7ed",
+      "telemetry.py": "916aee4d9d0005c0d6282a8707e80267f117826824334ccbf378637912a1623e",
+      "control.py": "15476ec89757d556739e31b559563e3148ed165be40feb48e4940ebbd83b14dc",
+      "panel_updates.py": "1570038b8641067f111c3c61cc51495ea240e3f8d62e3f9ddcbc1a45fbbfdad7",
+      "doctor.py": "ab503763e7aa3bf2af743b91c3c3d15ec1818a5619525abd455bd418286d714b",
+      "update_guard.py": "7c00f87e2c50b8d9d95af096ced6d731d332f417e4578911bd83c12260602151"
+    }
+  }
+}

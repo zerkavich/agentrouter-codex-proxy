@@ -257,6 +257,8 @@ The browser makes no CDN/font requests and does not automatically poll GitHub. L
 
 On a prepared machine installation, **Prepare update** checks four successful GitHub Actions jobs for the selected exact commit, extracts a bounded source package, verifies dependency pins and the protected bootstrap, and runs an isolated credential-free startup/API/assets probe. Preparation leaves the active worker running. Installation waits for current API requests, saves a verified backup and checks the new worker before admitting new calls. Startup failure triggers a verified rollback; the panel reconnects and shows the receipt. Keep the backup/state files for diagnosis.
 
+From 1.9.2, **Check updates** and **Prepare update** immediately accept a background job. You can navigate, reload or close the tab while it runs. The result remains available in that worker; the independent panel refreshes status about every two seconds. Repeated preparation of the same commit joins the current job. A failed package can be retried, and failed staging folders do not become cached packages. Installation and restart stay blocked until preparation finishes. If your automation calls these local control routes, HTTP 202 confirms acceptance; wait for `management.update.state` to become `checked`, `prepared` or `failed` before proceeding. An already prepared identical commit returns HTTP 200. Installation still requires its own action.
+
 To rebuild the committed browser assets during development:
 
 ```powershell

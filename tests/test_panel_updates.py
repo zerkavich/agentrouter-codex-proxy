@@ -202,6 +202,22 @@ class PanelUpdateTests(unittest.TestCase):
             self.assertEqual(updates.prepare_update(self.root, self.commit)['error_code'], 'update_prepared_changed')
         self.assert_previous()
 
+    def test_failed_probe_leaves_no_poisoned_package_and_can_retry(self):
+        import shutil
+        shutil.rmtree(self.folder)
+        with mock.patch.object(updates, 'read', side_effect=self.remote()), mock.patch.object(
+                updates, 'probe_candidate', side_effect=ValueError('update_probe_failed')):
+            self.assertEqual(updates.prepare_update(self.root, self.commit)['error_code'], 'update_probe_failed')
+        self.assertFalse(self.folder.exists())
+        self.assertFalse(list(self.folder.parent.glob('prepare-*')))
+        self.assert_previous()
+        with mock.patch.object(updates, 'read', side_effect=self.remote()), mock.patch.object(
+                updates, 'probe_candidate', return_value={'probe_passed': True, 'version': '1.8.1'}):
+            self.assertEqual(updates.prepare_update(self.root, self.commit)['state'], 'prepared')
+        self.assertTrue((self.folder / 'prepared.json').is_file())
+        self.assertFalse(list(self.folder.parent.glob('prepare-*')))
+        self.assert_previous()
+
     def test_handoff_token_is_temporary_and_fresh_start_rolls_back(self):
         transaction = updates.install_prepared(self.root, self.commit, 'b' * 32)
         transaction['handoff_sha256'] = hashlib.sha256(b'synthetic-handoff').hexdigest()

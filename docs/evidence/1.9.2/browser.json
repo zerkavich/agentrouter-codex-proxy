@@ -1,0 +1,66 @@
+{
+  "status": "passed",
+  "checks": [
+    "check-202",
+    "reload-resumes-same-job",
+    "api-remains-responsive",
+    "prepare-202",
+    "pending-disables-conflicts",
+    "restart-blocked-during-job",
+    "navigation-resumes-same-job",
+    "failure-with-retry",
+    "retry-new-job",
+    "english-and-language-persistence",
+    "install-requires-confirmation",
+    "mobile-no-overflow"
+  ],
+  "errors": [],
+  "consoles": [],
+  "externalRequests": [],
+  "providerCalls": 0,
+  "productionChanges": false,
+  "source_sha256": {
+    "control.py": "d9a1862fcd30d53ac44f2f5a5671d7f6eeaa4a4af89c863940ccce7dfe622355",
+    "panel_updates.py": "94a29884c2ca7e49a10866d792cb38e58b48207fa1eb82ad92a9cdd1ccf18562",
+    "service.py": "85b9fd6ca83733abd42cbcca88ac57dc4c71da7c95f5930f041eba237bf88dcf",
+    "telemetry.py": "8d8f47edfa67e29517709ff1ed583ed2d6b08699c3c5f541267cbd0739969c77",
+    "panel/index.html": "c93e9a7230a15c9158747e3d78306fb9814472091890533e37062f10bc23c196",
+    "panel/panel.css": "f290c45664ea3b4af19173e9f1c37d19d099d2a037f6d740a0b100352ffba0c7",
+    "panel/panel.js": "080af532bfdf6e42fc3667bf94b18ec802421b9beb5d9f77d646bd09619fee6e",
+    "panel-src/src/main.jsx": "48def993ff91fe1611ce1d44c09ade8f7a0fd41a5c191f959ea8bbedae48f307",
+    "panel-src/src/messages.js": "dfc907531218cfcafaaa56d3a5067468b4e3feb50dd5075bc3ad74de01bc9bd1",
+    "panel-src/src/i18n.js": "dabe5eb68966e59465f0b2271dd3d33205dc4f16d389498208e0794c75e46cfe"
+  },
+  "sources_unchanged": true,
+  "checked_at": "2026-11-16T15:35:16.653893+00:00",
+  "fixture_delays_seconds": {
+    "check": 5,
+    "prepare": 6
+  },
+  "jobs": [
+    {
+      "action": "check",
+      "accepted_ms": 67.99030000000005
+    },
+    {
+      "action": "prepare",
+      "accepted_ms": 47.788000000000466
+    },
+    {
+      "action": "prepare-retry",
+      "accepted_ms": 35.30160000000251
+    }
+  ],
+  "source_git_lf_sha256": {
+    "control.py": "15476ec89757d556739e31b559563e3148ed165be40feb48e4940ebbd83b14dc",
+    "panel_updates.py": "1570038b8641067f111c3c61cc51495ea240e3f8d62e3f9ddcbc1a45fbbfdad7",
+    "service.py": "0c8b2b22e2c19b271cc6292bf6e5204c2bed873ba39db4ed102ef675f18f6e22",
+    "telemetry.py": "916aee4d9d0005c0d6282a8707e80267f117826824334ccbf378637912a1623e",
+    "panel/index.html": "c93e9a7230a15c9158747e3d78306fb9814472091890533e37062f10bc23c196",
+    "panel/panel.css": "f290c45664ea3b4af19173e9f1c37d19d099d2a037f6d740a0b100352ffba0c7",
+    "panel/panel.js": "080af532bfdf6e42fc3667bf94b18ec802421b9beb5d9f77d646bd09619fee6e",
+    "panel-src/src/main.jsx": "09450968084c5983bf49a9bb5391b75716ffd0b32d380716a64b95f64c9496ae",
+    "panel-src/src/messages.js": "7f6186219643d14bc66f14b22f456a784c32bc1bbac7b5a6242ec13ac4b7a303",
+    "panel-src/src/i18n.js": "43ba28e27e624e1b64172fd2078d39d4e0c960b3aab20822be312055fe5037e8"
+  }
+}

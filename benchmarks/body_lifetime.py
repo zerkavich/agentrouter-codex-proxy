@@ -22,11 +22,27 @@ import time
 import tracemalloc
 
 
-CASES = ("large_image", "thirty_images", "large_text", "resource_mismatch")
+CASES = ("large_image", "thirty_images", "large_text", "resource_mismatch",
+         "resource_mismatch_text", "resource_mismatch_history")
 VARIANTS = ("baseline", "candidate")
 
 
 def fixture(case, size):
+    if case in ("resource_mismatch_text", "resource_mismatch_history"):
+        prefix = b'{"model":"synthetic","stream":true,"input":'
+        if case == "resource_mismatch_text":
+            unit = 'История текста 🌍. '.encode('utf-8')
+            content = b'"' + unit * (size // len(unit)) + b'"'
+        else:
+            message = (b'{"type":"message","role":"user","content":[{"type":"input_text","text":"'
+                       + b"A" * 4000 + b'"}]}')
+            content = b'[' + b','.join([message] * (size // len(message))) + b']'
+        body = prefix + content + b',"previous_response_id":"resp_synthetic"}'
+        expected = hashlib.sha256()
+        expected.update(prefix)
+        expected.update(content)
+        expected.update(b'}')
+        return body, expected.hexdigest()
     if case == "thirty_images":
         image = b'{"type":"input_image","image_url":"data:image/png;base64,' + b"A" * (size // 30) + b'"}'
         body = (b'{"model":"synthetic","stream":true,"input":[{"type":"message","role":"user","content":['
@@ -80,7 +96,7 @@ async def worker(args):
                 digest.update(chunk)
                 remaining -= len(chunk)
             uploads.append(digest.hexdigest())
-            if current_case == "resource_mismatch" and len(uploads) == 1:
+            if current_case.startswith("resource_mismatch") and len(uploads) == 1:
                 error = b'{"error":{"message":"The requested item was created under a different OpenAI resource."}}'
                 writer.write(b"HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: "
                              + str(len(error)).encode() + b"\r\nConnection: close\r\n\r\n" + error)
@@ -153,7 +169,7 @@ async def worker(args):
                     gc.collect()
                     streaming, peak = tracemalloc.get_traced_memory()
                     memory.update(committed_stream_bytes=streaming, peak_bytes=peak)
-                expected_uploads = ([input_hash, expected_hash] if args.case == "resource_mismatch" else [input_hash])
+                expected_uploads = ([input_hash, expected_hash] if args.case.startswith("resource_mismatch") else [input_hash])
                 if uploads != expected_uploads or response.upstream_response.is_closed:
                     raise RuntimeError("Upload hash or open-stream verification failed")
                 sample = {"input_bytes": input_size, "input_sha256": input_hash,
@@ -200,6 +216,8 @@ def main():
     parser.add_argument("--samples", type=int, default=6, help="Even number of adjacent AB/BA pairs per case")
     parser.add_argument("--size-mib", type=int, default=32)
     parser.add_argument("--timing-samples", type=int, default=10, help="Untraced uploads per isolated worker")
+    parser.add_argument("--cases", nargs='+', choices=CASES, default=CASES,
+                        help="Synthetic cases to measure (default: all)")
     parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--source", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--case", choices=CASES, help=argparse.SUPPRESS)
@@ -209,6 +227,8 @@ def main():
         return 0
     if args.samples < 2 or args.samples % 2 or not 1 <= args.size_mib <= 64 or not 1 <= args.timing_samples <= 100:
         parser.error("Use an even pair count >= 2, a size of 1-64 MiB and 1-100 timing samples")
+    if len(set(args.cases)) != len(args.cases):
+        parser.error("Select each case once")
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from compare import snapshot_runtime
     sources = {"baseline": snapshot_runtime(repository / "proxy.py", repository, args.baseline_ref),
@@ -236,6 +256,7 @@ def main():
                "benchmark_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                "python": sys.version, "samples": args.samples, "size_mib": args.size_mib,
                "timing_samples_per_worker": args.timing_samples,
+               "cases": list(args.cases),
                "real_model_calls": 0, "memory_semantics": "Live Python allocations including fixture; not RSS",
                "method": "Isolated processes in adjacent AB/BA order; warmed TCP backend; separate untraced timing run",
                "packages": {name: importlib.metadata.version(name) for name in ("httpx", "httpcore", "starlette", "anyio")}}
@@ -244,11 +265,11 @@ def main():
         (folder / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
 
     save()
-    pairs = {case: [] for case in CASES}
+    pairs = {case: [] for case in args.cases}
     try:
         with (folder / "pairs.jsonl").open("x", encoding="utf-8") as raw:
             for index in range(args.samples):
-                for case in CASES:
+                for case in args.cases:
                     order = VARIANTS if index % 2 == 0 else VARIANTS[::-1]
                     pair = {"case": case, "index": index, "order": list(order)}
                     for variant in order:

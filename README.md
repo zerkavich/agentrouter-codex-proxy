@@ -2,7 +2,7 @@
 
 A lightweight local compatibility proxy that fixes cross-resource session errors when using **Codex Desktop** or **Codex CLI** with **AgentRouter**.
 
-Version **1.9.1** releases large uploaded bodies during long response streams and avoids whole-body JSON decoding when a conservative image check proves pruning is unnecessary. See [memory changes and measurements](docs/body-memory-1.9.1.md).
+Version **1.9.2** lowers recovery/pruning memory peaks with bounded JSON serialization and earlier release of replaced uploads. Update checks and package preparation run as background jobs with visible progress and retry controls. See [changes and measurements](docs/peak-memory-1.9.2.md) and the [previous large-upload improvements](docs/body-memory-1.9.1.md).
 
 The independent browser panel at **http://127.0.0.1:8789/** provides automatic worker recovery, bounded request/metrics history and Russian/English interfaces. API traffic stays on **127.0.0.1:8788**, with a default 256 KiB per-stream queue. See [browser features and measurements](docs/resilience-1.9.0.md).
 

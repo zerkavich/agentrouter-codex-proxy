@@ -35,6 +35,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import ipaddress
+import io
 import json
 import logging
 import math
@@ -331,7 +332,7 @@ if RATE_LIMIT_SCOPE not in ("credential", "shared"):
 RATE_LIMIT_MAX_PARTITIONS = max(1, int(os.environ.get("PROXY_RATE_LIMIT_PARTITIONS", "256")))
 TIMINGS = RuntimeTimings(os.environ.get("PROXY_TIMINGS", "0").lower() not in ("0", "", "false"))
 _STARTED_MONOTONIC = time.monotonic()
-VERSION = "1.9.1"
+VERSION = "1.9.2"
 _PROFILE_HASH_KEY = os.urandom(32)
 
 CLIENT_TIMEOUT = httpx.Timeout(
@@ -1894,8 +1895,129 @@ def _rate_limit_error_response(
     return JSONResponse(status_code=429, content={"error": body_err}, headers=out_headers)
 
 
-def _encode_responses_payload(payload: dict) -> bytes:
+_JSON_GROUP_CHARACTERS = 262144
+_JSON_STRING_CHARACTERS = 65536
+
+
+def _json_weight(value: Any, limit: int = _JSON_GROUP_CHARACTERS) -> int:
+    """Cheap, capped sizing of parsed JSON; never walks large string contents."""
+    if isinstance(value, str):
+        return len(value) * (1 if value.isascii() else 4) + 2
+    if isinstance(value, dict):
+        size = 2
+        for key, item in value.items():
+            size += len(key) + 4 + _json_weight(item, limit - size)
+            if size > limit:
+                break
+        return size
+    if isinstance(value, list):
+        size = 2
+        for item in value:
+            size += 1 + _json_weight(item, limit - size)
+            if size > limit:
+                break
+        return size
+    if type(value) is int:
+        # Upper-bound decimal digits without constructing a potentially huge
+        # decimal string. Booleans retain the scalar bound below.
+        return value.bit_length() * 30103 // 100000 + 2 + (value < 0)
+    return 24
+
+
+def _encode_large_responses_payload(payload: dict, *, ensure_ascii: bool = False, source_size: int = 0) -> bytes:
+    """Keep the C encoder for groups, avoiding a full-size intermediate string."""
+    output = io.BytesIO()
+    string_encoder = json.encoder.encode_basestring_ascii if ensure_ascii else json.encoder.encode_basestring
+
+    def packed(value: Any) -> str:
+        return json.dumps(value, ensure_ascii=ensure_ascii, separators=(",", ":"))
+
+    def write_string(value: str) -> None:
+        if len(value) <= _JSON_STRING_CHARACTERS:
+            output.write(string_encoder(value).encode("utf-8"))
+            return
+        output.write(b'"')
+        for start in range(0, len(value), _JSON_STRING_CHARACTERS):
+            text = string_encoder(value[start:start + _JSON_STRING_CHARACTERS]).encode("utf-8")
+            output.write(memoryview(text)[1:-1])
+        output.write(b'"')
+
+    def write(value: Any, weight: Optional[int] = None) -> None:
+        if weight is None:
+            weight = _json_weight(value)
+        if weight <= _JSON_GROUP_CHARACTERS:
+            output.write(packed(value).encode("utf-8"))
+        elif isinstance(value, str):
+            write_string(value)
+        elif isinstance(value, (dict, list)):
+            mapping = isinstance(value, dict)
+            output.write(b"{" if mapping else b"[")
+            group = {} if mapping else []
+            group_size = 0
+            first = True
+
+            def flush() -> None:
+                nonlocal group_size, first
+                if group:
+                    if not first:
+                        output.write(b",")
+                    output.write(memoryview(packed(group).encode("utf-8"))[1:-1])
+                    group.clear()
+                    group_size = 0
+                    first = False
+
+            items = value.items() if mapping else enumerate(value)
+            for key, item in items:
+                item_weight = _json_weight(item)
+                entry_weight = item_weight + (len(key) + 4 if mapping else 1)
+                if entry_weight > _JSON_GROUP_CHARACTERS:
+                    flush()
+                    if not first:
+                        output.write(b",")
+                    if mapping:
+                        write_string(key)
+                        output.write(b":")
+                    write(item, item_weight)
+                    first = False
+                else:
+                    if group_size + entry_weight > _JSON_GROUP_CHARACTERS:
+                        flush()
+                    if mapping:
+                        group[key] = item
+                    else:
+                        group.append(item)
+                    group_size += entry_weight
+            flush()
+            output.write(b"}" if mapping else b"]")
+        else:
+            output.write(packed(value).encode("utf-8"))
+
+    try:
+        weight = _json_weight(payload)
+        if source_size:
+            # Growing a multi-MiB BytesIO repeatedly copies its whole buffer.
+            # The capped probe covers small replacements. Larger trees reserve
+            # from the source, avoiding a second traversal of every message.
+            hint = source_size if weight > _JSON_GROUP_CHARACTERS else min(source_size, weight)
+            hint = (hint + _JSON_STRING_CHARACTERS - 1) // _JSON_STRING_CHARACTERS * _JSON_STRING_CHARACTERS
+            if hint:
+                output.seek(hint - 1)
+                output.write(b"\0")
+                output.seek(0)
+        write(payload, weight)
+        output.truncate()
+        return output.getvalue()
+    finally:
+        output.close()
+
+
+def _encode_responses_payload(payload: dict, *, source_size: int = 0) -> bytes:
     """Encode only modified payloads, without expanding Unicode to ASCII escapes."""
+    if source_size >= LARGE_REQUEST_BODY_BYTES:
+        try:
+            return _encode_large_responses_payload(payload, source_size=source_size)
+        except UnicodeEncodeError:
+            return _encode_large_responses_payload(payload, ensure_ascii=True, source_size=source_size)
     text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     try:
         return text.encode("utf-8")
@@ -2173,12 +2295,16 @@ async def _prepare_responses_request(request: Request):
     except ClientDisconnect:
         STATS["client_disconnects_during_upload"] += 1
         return Response(status_code=499)
+    body_size = len(body_bytes)
     source_headers = _filter_headers(dict(request.headers))
     rate_state = _acquire_rate_limit_state(source_headers)
     async with _watch_client_disconnect(request):
         try:
-            response = await _handle_responses(request, body_bytes, source_headers, rate_state)
-            if isinstance(response, UpstreamStreamingResponse) and len(body_bytes) >= LARGE_REQUEST_BODY_BYTES:
+            operation = _handle_responses(request, body_bytes, source_headers, rate_state)
+            # Only the handler and receive cache own replay bytes while awaiting.
+            del body_bytes
+            response = await operation
+            if isinstance(response, UpstreamStreamingResponse) and body_size >= LARGE_REQUEST_BODY_BYTES:
                 # SSE has committed; neither recovery nor upload needs the body
                 # now. Keep the cache attribute to mark the receive side consumed.
                 request._body = b""
@@ -2205,14 +2331,21 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
         if active_payload and isinstance(active_payload.get("input"), list):
             active_payload, pre_pruned = prune_excess_images(active_payload, max_images=MAX_IMAGES_PER_REQUEST)
             if pre_pruned > 0:
-                req_content = _encode_responses_payload(active_payload)
                 # Recovery uses the pruned tree; release removed image strings.
                 body_json = active_payload
+                source_size = len(body_bytes)
+                body_bytes = req_content = b""
+                if source_size >= LARGE_REQUEST_BODY_BYTES:
+                    request._body = b""
+                req_content = _encode_responses_payload(active_payload, source_size=source_size)
                 STATS["images_pruned_total"] += pre_pruned
                 logger.warning(
                     "[Preemptive Image Pruning] Pruned %d historical images (kept %d latest) to prevent 50-image ceiling rejection",
                     pre_pruned, MAX_IMAGES_PER_REQUEST
                 )
+
+        # Any fallback decodes the current request; removed images are not needed.
+        body_bytes = b""
 
     retry_start = time.monotonic()
     transient_retries = 0
@@ -2225,14 +2358,21 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
         STATS["resource_mismatches_caught"] += 1
         logger.warning("[Resource Mismatch] %s: %s", source_label, detail[:160])
         if not fallback_active and body_json is None:
-            body_json = _decode_responses_payload(body_bytes)
+            body_json = _decode_responses_payload(req_content)
         if not fallback_active and body_json is not None:
             fallback_active = True
             STATS["stateless_fallbacks_applied"] += 1
             active_payload = sanitize_responses_payload(
                 active_payload if active_payload is not None else body_json
             )
-            req_content = _encode_responses_payload(active_payload)
+            source_size = len(req_content)
+            # Once recovery has a sanitized tree, original replay bytes and
+            # removed state items are no longer needed during serialization.
+            req_content = b""
+            wire_content = body_json = None
+            if source_size >= LARGE_REQUEST_BODY_BYTES:
+                request._body = b""
+            req_content = _encode_responses_payload(active_payload, source_size=source_size)
             wire_content = req_content if gzip_fallback_active else None
             # Subsequent attempts reuse these bytes, not the decoded trees.
             body_json = active_payload = None

@@ -11,6 +11,7 @@ import ipaddress
 import json
 import math
 import os
+import re
 from pathlib import Path
 import secrets
 import time
@@ -198,6 +199,8 @@ class ControlRuntime:
         self.settings_lock = asyncio.Lock()
         self.updates_lock = asyncio.Lock()
         self.update_info = {'state': 'not_checked', 'update_available': False}
+        self.update_task = None
+        self.closing = False
         self.supervisor_token = os.environ.get('PROXY_SUPERVISOR_TOKEN', '')
         self.supervised = len(self.supervisor_token) >= 32
         self.history = None
@@ -208,6 +211,7 @@ class ControlRuntime:
         self.auto_profile_saved = False
 
     async def start(self):
+        self.closing = False
         self.history = HistoryStore(state_dir(self.root) / 'request-history.sqlite3',
                                     max_requests=self.active_settings['PROXY_HISTORY_MAX_REQUESTS'],
                                     hours=self.active_settings['PROXY_HISTORY_HOURS'],
@@ -276,6 +280,11 @@ class ControlRuntime:
             self.idle.set()
 
     async def close(self):
+        self.closing = True
+        if self.update_task is not None:
+            # Cancelling to_thread cannot stop filesystem work. Keep ownership
+            # until accepted preparation has actually finished, also at shutdown.
+            await asyncio.shield(self.update_task)
         if self.restart_task is not None and not self.restart_task.done():
             self.restart_task.cancel()
             await asyncio.gather(self.restart_task, return_exceptions=True)
@@ -335,7 +344,7 @@ class ControlRuntime:
     async def request_restart(self, force=False, commit=None):
         if not self.supervised:
             raise ControlError('restart_requires_supervisor', 409)
-        if self.updates_lock.locked():
+        if self.updates_lock.locked() or (self.update_task is not None and not self.update_task.done()):
             raise ControlError('update_busy', 409)
         if self.restart_task is not None and not self.restart_task.done():
             raise ControlError('restart_already_pending', 409)
@@ -344,6 +353,44 @@ class ControlRuntime:
                             'action': 'update' if commit else 'restart'}
         self.restart_task = asyncio.create_task(self._restart(force, commit))
         return self.restart_job
+
+    def request_update(self, action, commit=None):
+        """Accept one bounded background job; duplicate clicks join its state."""
+        if self.closing or self.draining:
+            raise ControlError('restart_already_pending', 409)
+        if action == 'prepare' and (not isinstance(commit, str) or not re.fullmatch('[0-9a-f]{40}', commit)):
+            raise ControlError('invalid_update_commit')
+        if self.update_task is not None and not self.update_task.done():
+            if self.update_info.get('action') == action and (action != 'prepare' or self.update_info.get('commit') == commit):
+                return dict(self.update_info)
+            raise ControlError('update_busy', 409)
+        if action == 'prepare' and self.update_info.get('state') == 'prepared' and self.update_info.get('commit') == commit:
+            return dict(self.update_info)
+        info = {**self.update_info, 'state': 'checking' if action == 'check' else 'preparing',
+                'action': action, 'job_id': uuid.uuid4().hex, 'started_at': utc()}
+        info.pop('error_code', None)
+        info.pop('finished_at', None)
+        if action == 'prepare':
+            info['commit'] = commit
+        self.update_info = info
+        self.update_task = asyncio.create_task(self._run_update(action, commit))
+        return dict(info)
+
+    async def _run_update(self, action, commit):
+        identity = {name: self.update_info[name] for name in ('action', 'job_id', 'started_at')}
+        try:
+            from panel_updates import check_latest, prepare_update
+            async with self.updates_lock:
+                if action == 'check':
+                    result = await asyncio.to_thread(check_latest, self.root, self.version)
+                    self.update_info = {**result, **identity, 'finished_at': utc()}
+                else:
+                    result = await asyncio.to_thread(prepare_update, self.root, commit)
+                    self.update_info = {**self.update_info, **result, 'finished_at': utc()}
+        except Exception:
+            # Report only a fixed code, never URLs, tokens or local paths.
+            self.update_info = {**self.update_info, 'state': 'failed', 'finished_at': utc(),
+                                'error_code': 'update_check_unavailable' if action == 'check' else 'update_prepare_failed'}
 
     async def _restart(self, force, commit=None):
         try:
@@ -676,15 +723,11 @@ def attach_control(app, runtime):
             elif action == 'restart/cancel':
                 result = await runtime.cancel_restart()
             elif action == 'updates/check':
-                from panel_updates import check_latest
-                async with runtime.updates_lock:
-                    result = await asyncio.to_thread(check_latest, runtime.root, runtime.version)
-                    runtime.update_info = result
+                result = runtime.request_update('check')
+                code = 202
             elif action == 'updates/prepare':
-                from panel_updates import prepare_update
-                async with runtime.updates_lock:
-                    result = await asyncio.to_thread(prepare_update, runtime.root, data.get('commit'))
-                    runtime.update_info = {**runtime.update_info, **result}
+                result = runtime.request_update('prepare', data.get('commit'))
+                code = 202 if result.get('state') == 'preparing' else 200
             elif action == 'updates/install':
                 from panel_updates import install_supported
                 commit = data.get('commit')
