@@ -340,7 +340,7 @@ if RATE_LIMIT_SCOPE not in ("credential", "shared"):
 RATE_LIMIT_MAX_PARTITIONS = max(1, int(os.environ.get("PROXY_RATE_LIMIT_PARTITIONS", "256")))
 TIMINGS = RuntimeTimings(os.environ.get("PROXY_TIMINGS", "0").lower() not in ("0", "", "false"))
 _STARTED_MONOTONIC = time.monotonic()
-VERSION = "1.10.0"
+VERSION = "1.10.1"
 _PROFILE_HASH_KEY = os.urandom(32)
 
 CLIENT_TIMEOUT = httpx.Timeout(
@@ -525,6 +525,7 @@ STATS = {
     "upstream_capacity_waits": 0,
     "upstream_unstarted_connections_reclaimed": 0,
     "upstream_orphaned_connections_reclaimed": 0,
+    "upstream_orphaned_requests_reclaimed": 0,
     "client_disconnects_during_upload": 0,
     "upstream_disconnect_cancellations": 0,
     "gzip_payloads": 0,
@@ -863,9 +864,24 @@ async def _wait_for_rate_limit_gate(request: Request, state: Optional[Dict[str, 
 # ----------------------------------------------------------------------------
 _SHARED_CLIENT: Optional[httpx.AsyncClient] = None
 _CLIENT_CAPACITY = weakref.WeakKeyDictionary()
+_POOL_LEASE_EXTENSION = "agentrouter_proxy.upstream_lease"
 
 
 def _assign_without_abandoned_connections(pool, original_assign):
+    # PoolByteStream marks itself closed *before* awaiting protocol cleanup.
+    # A failed/explicitly cancelled close can strand both the ACTIVE connection
+    # and its pool request. HTTPX then refuses to close that response again.
+    # Only our released leases prove that a request has no remaining owner;
+    # untracked callers and still-running closes keep their pool assignments.
+    retired = []
+    for pool_request in pool._requests:
+        lease = pool_request.request.extensions.get(_POOL_LEASE_EXTENSION)
+        if isinstance(lease, _UpstreamLease) and lease.released:
+            retired.append(pool_request)
+    if retired:
+        for pool_request in retired:
+            pool._requests.remove(pool_request)
+        STATS["upstream_orphaned_requests_reclaimed"] += len(retired)
     # Interrupted HTTPcore cleanup can leave an ACTIVE or never-started
     # connection with no owning pool request; neither is idle or closed.
     # Run under HTTPcore's own pool lock, before it assigns the remaining queue.
@@ -880,6 +896,8 @@ def _assign_without_abandoned_connections(pool, original_assign):
         STATS["upstream_unstarted_connections_reclaimed"] += sum(
             getattr(connection, "_connection", False) is None for connection in abandoned)
         STATS["upstream_orphaned_connections_reclaimed"] += len(abandoned)
+    if retired or abandoned:
+        note_attempt('pool_recovery')
     # The caller closes these using HTTPcore's normal cancellation shield.
     # Established keep-alive connections and owned TCP/TLS connects are retained.
     return abandoned + original_assign()
@@ -969,6 +987,9 @@ async def _send_with_capacity(client: httpx.AsyncClient, request: httpx.Request,
     capacity.in_use += 1
     lease = _UpstreamLease(capacity)
     try:
+        # A fresh dictionary isolates ownership when a Request is reused;
+        # allocation/send failures both release the acquired capacity.
+        request.extensions = {**request.extensions, _POOL_LEASE_EXTENSION: lease}
         response = await client.send(request, stream=stream)
         if response.is_closed:
             lease.release()
@@ -1018,11 +1039,12 @@ def sanitize_responses_payload(payload: dict) -> dict:
     Also prunes accumulated images to safely fit under the 50-image ceiling.
     """
     clean_data = dict(payload)
+    stripped_pointers = dropped_state_items = 0
 
     # 1. Remove all server-side session pointers
     for state_key in ("previous_response_id", "response_id", "parent_id", "parent_response_id"):
         if state_key in clean_data:
-            logger.info("[Sanitizer] Stripped '%s' (%s)", state_key, clean_data[state_key])
+            stripped_pointers += 1
             del clean_data[state_key]
 
     # 2. Sanitize input items
@@ -1039,7 +1061,7 @@ def sanitize_responses_payload(payload: dict) -> dict:
             # and is rejected as stateless input by foreign Azure resources.
             t = item.get("type")
             if t in ("reasoning", "item_reference"):
-                logger.info("[Sanitizer] Dropped server-state item of type '%s'", t)
+                dropped_state_items += 1
                 continue
 
             cleaned_item = dict(item)
@@ -1079,6 +1101,9 @@ def sanitize_responses_payload(payload: dict) -> dict:
             pruned_count, MAX_IMAGES_PER_REQUEST
         )
 
+    if VERBOSE and (stripped_pointers or dropped_state_items):
+        logger.info("[Sanitizer] Removed %d session pointers and %d server-state items",
+                    stripped_pointers, dropped_state_items)
     return clean_data
 
 # ----------------------------------------------------------------------------
@@ -1355,6 +1380,7 @@ async def diagnostics():
     capacity = _CLIENT_CAPACITY.get(_SHARED_CLIENT) if _SHARED_CLIENT is not None else None
     pool = getattr(getattr(_SHARED_CLIENT, "_transport", None), "_pool", None)
     connections = getattr(pool, "_connections", ())
+    pool_requests = getattr(pool, "_requests", ())
     counts = {name: value for name, value in STATS.items() if name != "start_time"}
     timing_snapshot = TIMINGS.snapshot()
     findings = []
@@ -1399,6 +1425,11 @@ async def diagnostics():
             "waiters": capacity.waiters if capacity is not None else 0,
             "connections": len(connections),
             "idle_connections": sum(connection.is_idle() for connection in connections),
+            "requests": len(pool_requests),
+            "queued_requests": sum(pool_request.is_queued() for pool_request in pool_requests),
+            "released_requests": sum(isinstance(pool_request.request.extensions.get(_POOL_LEASE_EXTENSION), _UpstreamLease)
+                                     and pool_request.request.extensions[_POOL_LEASE_EXTENSION].released
+                                     for pool_request in pool_requests),
             "cleanup_active": bool(getattr(pool, "_proxy_unstarted_cleanup", False)),
         },
         "rate_limits": {
@@ -3318,6 +3349,8 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
             should_retry, _ = await schedule_transient_wait(False, {}, description, "Attempt Exception")
             if should_retry:
                 continue
+            if isinstance(exc, httpx.PoolTimeout):
+                note_stream_error('upstream_pool_timeout')
             return last_failure_response
         finally:
             if resp is not None and not stream_handed_off:
@@ -3395,6 +3428,8 @@ async def passthrough_handler(request: Request, path: str):
     except Exception as exc:
         description = describe_upstream_error(exc)
         logger.error("[Passthrough Error] %s -> %s: %s", request.method, target_url, description)
+        if isinstance(exc, httpx.PoolTimeout):
+            note_stream_error('upstream_pool_timeout')
         return JSONResponse(
             status_code=502,
             content={"error": {"message": f"Proxy passthrough error: {description}", "type": "proxy_error"}}

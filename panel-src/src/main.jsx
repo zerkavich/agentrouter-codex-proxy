@@ -280,6 +280,7 @@ const attemptCopy = {
   retry_wait: 'Пауза перед повтором', quota_wait: 'Пауза квоты', resource_recovery: 'Восстановление истории',
   gzip_recovery: 'Повтор без gzip', sse_error: 'Ошибка в начале стрима', memory_wait: 'Очередь памяти',
   memory_budget_exhausted: 'Ожидание памяти истекло', binding_invalidated: 'Привязка сессии недоступна', cancelled: 'Отменён',
+  pool_recovery: 'Освобождение брошенных соединений',
 };
 function RequestAttempts({ call, row, language }) {
   const [open, setOpen] = useState(false), [result, setResult] = useState(null), [error, setError] = useState(null);

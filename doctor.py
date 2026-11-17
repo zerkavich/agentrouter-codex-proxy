@@ -24,6 +24,8 @@ COUNTERS = (
     "requests_total", "responses_requests", "resource_mismatches_caught",
     "stateless_fallbacks_applied", "successful_recoveries", "transport_retries",
     "pool_timeouts", "upstream_capacity_waits", "upstream_disconnect_cancellations",
+    "upstream_unstarted_connections_reclaimed", "upstream_orphaned_connections_reclaimed",
+    "upstream_orphaned_requests_reclaimed",
     "client_disconnects_during_upload", "gzip_payloads", "gzip_fallbacks",
     "gzip_cached_rejection_skips", "gzip_busy_skips", "gzip_cost_skips",
     "sse_backpressure_events", "rate_limit_overflow_requests", "rate_limits_caught",
@@ -148,6 +150,9 @@ def sanitize_snapshot(health, data=None):
             "waiters": _number(raw_pool.get("waiters", health.get("upstream_slot_waiters")), 0),
             "connections": _number(raw_pool.get("connections")),
             "idle_connections": _number(raw_pool.get("idle_connections")),
+            "requests": _number(raw_pool.get("requests"), 0),
+            "queued_requests": _number(raw_pool.get("queued_requests"), 0),
+            "released_requests": _number(raw_pool.get("released_requests"), 0),
             "cleanup_active": raw_pool.get("cleanup_active", health.get("upstream_pool_cleanup_active")) is True,
         },
         "rate_limits": {

@@ -1,0 +1,15 @@
+{
+  "status": "passed",
+  "checks": [
+    "Russian attempts expand and load",
+    "English details contain no untranslated text",
+    "Memory reservation counters reach the browser",
+    "Memory settings use visible labels"
+  ],
+  "errors": [],
+  "providerCalls": 0,
+  "pool_cleanup_event": "pool_recovery",
+  "keyboard_expansion": true,
+  "ru_label": "Освобождение брошенных соединений",
+  "en_label": "Abandoned connection cleanup"
+}

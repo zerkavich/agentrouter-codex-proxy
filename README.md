@@ -2,7 +2,9 @@
 
 A lightweight local compatibility proxy that fixes cross-resource session errors when using **Codex Desktop** or **Codex CLI** with **AgentRouter**.
 
-Version **1.10.0** reduces large incoming-body copies, adds configurable aggregate memory admission, and shows bounded retry/recovery details in Russian/English request history. See [changes, measurements and tradeoffs](docs/incoming-attempts-1.10.0.md) and the [previous gzip/recovery improvements](docs/gzip-replay-1.9.3.md).
+Version **1.10.1** reclaims pool request records stranded by cancelled or failed response cleanup, preventing a responsive worker from remaining stuck on `PoolTimeout`. Browser history labels these cleanups in Russian and English. See [the fix and regression controls](docs/pool-ownership-1.10.1.md).
+
+Version **1.10.0** reduced large incoming-body copies and added configurable aggregate memory admission and bounded retry/recovery details. See [memory measurements and queue tradeoffs](docs/incoming-attempts-1.10.0.md) and the [previous gzip/recovery improvements](docs/gzip-replay-1.9.3.md).
 
 The independent browser panel at **http://127.0.0.1:8789/** provides automatic worker recovery, bounded request/metrics history and Russian/English interfaces. API traffic stays on **127.0.0.1:8788**, with a default 256 KiB per-stream queue. See [browser features and measurements](docs/resilience-1.9.0.md).
 

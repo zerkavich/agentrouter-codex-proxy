@@ -193,6 +193,7 @@ class ControlRuntime:
         self.active_settings = {**current_settings(), **(active_settings or {})}
         self.token = secrets.token_urlsafe(32)
         self.active = 0
+        self.failed_requests = 0
         self.paused = os.environ.get('PROXY_CONTROL_BOOT_PAUSED') == '1'
         self.draining = False
         self.restart_job = None
@@ -228,7 +229,8 @@ class ControlRuntime:
             now = time.monotonic()
             if now >= next_metric:
                 data = await self.diagnostics()
-                self.history.metric(data, {'active_requests': self.active})
+                self.history.metric(data, {'active_requests': self.active,
+                                           'failed_requests': self.failed_requests})
                 next_metric = now + 60
             if self.auto_profile_until and now >= self.auto_profile_until and not self.auto_profile_saved:
                 from doctor import sanitize_snapshot
@@ -252,6 +254,8 @@ class ControlRuntime:
             return
         failed = (record.status >= 500 and record.error != 'proxy_paused') or record.error in ('upstream_stream_error', 'upstream_response_failed', 'stream_incomplete', 'handler_error')
         cancelled = record.status == 499 or (record.disconnected and not record.complete)
+        if failed and not cancelled:
+            self.failed_requests += 1
         if not failed or cancelled or not self.active_settings['PROXY_AUTO_DIAGNOSTICS']:
             return
         now = time.monotonic()
@@ -304,6 +308,7 @@ class ControlRuntime:
         except ValueError:
             panel_port = self.port + 1
         return {'active_requests': self.active, 'paused': self.paused, 'draining': self.draining,
+                'failed_requests': self.failed_requests,
                 'restart_supported': self.supervised, 'restart_job': self.restart_job,
                 'last_action': safe_action(self.root), 'settings_revision': revision,
                 'pending_settings': effective != self.active_settings,

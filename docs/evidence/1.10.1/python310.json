@@ -1,0 +1,24 @@
+{
+  "python": "3.10.11 (tags/v3.10.11:7d4cc5a, Apr  5 2023, 00:38:17) [MSC v.1929 64 bit (AMD64)]",
+  "packages": {
+    "fastapi": "0.115.6",
+    "starlette": "0.41.3",
+    "uvicorn": "0.34.0",
+    "httpx": "0.28.1",
+    "httpcore": "1.0.9",
+    "isal": "1.9.1",
+    "httptools": "0.9.0"
+  },
+  "tests_run": 65,
+  "failures": 0,
+  "errors": 0,
+  "real_model_calls": 0,
+  "runtime_sha256": {
+    "control.py": "82aa995ed73c92176f25872c92a3b593059fc081c38301fc13f42b1399ec5757",
+    "doctor.py": "2e33fd514836f0b7c34b6adeefd1a7adcb46a2379cd1aedd8fbc3d49c1b8970d",
+    "panel_updates.py": "94a29884c2ca7e49a10866d792cb38e58b48207fa1eb82ad92a9cdd1ccf18562",
+    "proxy.py": "4d6656125d240be34a07f9279cb6ef3bae7a8e9d0b133b467c1ef1a78bcbd2c0",
+    "telemetry.py": "06ad4bac00afa3a965a597e1732fcaf4928af0620128eb5d67830e48946238fd",
+    "update_guard.py": "5d3b3fb3ed20e4d6db70fb6d4f2b3bdf5cd3f2524eacb14dc2c8aa7ba30c869f"
+  }
+}

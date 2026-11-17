@@ -11,6 +11,7 @@ export const english = {
   "Таймаут передачи": "Transport timeout",
   "Соединение прервано": "Connection interrupted",
   "Ожидание соединения истекло": "Connection slot wait timed out",
+  "Освобождение брошенных соединений": "Abandoned connection cleanup",
   "Ошибка передачи": "Transport error",
   "Пауза квоты": "Quota wait",
   "Восстановление истории": "History recovery",

@@ -325,6 +325,26 @@ class RequestHistoryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.runtime.history.pending.unfinished_tasks, 0)
         self.assertEqual(self.runtime.history.write_errors, 0)
 
+    async def test_error_metrics_count_final_failures_and_exclude_recovery_pause_and_cancel(self):
+        self.runtime.active_settings['PROXY_AUTO_DIAGNOSTICS'] = False
+        self.assertEqual((await self.client.get('/v1/failure')).status_code, 502)
+        self.assertEqual((await self.client.post('/v1/responses', content=b'synthetic')).status_code, 200)
+        self.runtime.paused = True
+        try:
+            self.assertEqual((await self.client.post('/v1/responses')).status_code, 503)
+        finally:
+            self.runtime.paused = False
+        stream = asyncio.create_task(self.client.get('/v1/stream'))
+        await asyncio.wait_for(self.entered.wait(), 3)
+        stream.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await stream
+        status = (await self.client.get('/_control/api/status')).json()
+        self.assertEqual(status['management']['failed_requests'], 1)
+        self.runtime.history.metric(await self.runtime.diagnostics(), status['management'])
+        await self.flush()
+        self.assertEqual(self.runtime.history.metrics()['items'][-1]['errors'], 1)
+
     async def test_history_has_numeric_metadata_without_payload_query_or_credentials(self):
         await self.client.post('/v1/responses?private=SYNTHETIC_QUERY_CANARY', content=b'SYNTHETIC_REQUEST_CANARY', headers={'authorization': 'Bearer SYNTHETIC_KEY_CANARY'})
         await self.flush()

@@ -46,7 +46,7 @@ REQUEST_STAGES = {'rate_limit_gate': 0, 'retry_backoff': 0,
 ATTEMPT_CODES = frozenset(('upstream', 'transport_connect', 'transport_timeout',
     'transport_protocol', 'transport_pool', 'transport_other', 'retry_wait',
     'quota_wait', 'resource_recovery', 'gzip_recovery', 'sse_error',
-    'memory_wait', 'memory_budget_exhausted', 'binding_invalidated', 'cancelled'))
+    'memory_wait', 'memory_budget_exhausted', 'binding_invalidated', 'cancelled', 'pool_recovery'))
 ATTEMPT_LIMIT = 16
 
 
@@ -111,7 +111,7 @@ def note_attempt(code, *, status=0, duration_s=0, wait_s=0):
 
 def note_stream_error(code):
     record = REQUEST_RECORD.get()
-    if record is not None and code in ('upstream_stream_error', 'upstream_response_failed', 'stream_incomplete', 'handler_error'):
+    if record is not None and code in ('upstream_stream_error', 'upstream_response_failed', 'stream_incomplete', 'handler_error', 'upstream_pool_timeout'):
         record.error = code
 
 
@@ -310,7 +310,7 @@ class HistoryStore:
         value = (time.time(), os.getpid(), management.get('active_requests', 0),
                  snapshot.get('connection_pool', {}).get('in_use', 0),
                  snapshot.get('rate_limits', {}).get('queued_requests', 0),
-                 counts.get('responses_requests', 0), counts.get('upstream_errors', 0),
+                 counts.get('responses_requests', 0), management.get('failed_requests', counts.get('upstream_errors', 0)),
                  counts.get('rate_limits_caught', 0), memory['rss_bytes'], memory['private_bytes'])
         return self.submit('metric', value)
 

@@ -1,0 +1,27 @@
+{
+  "scope": "Assertions using real loopback TCP and pinned HTTPX/HTTPcore; no provider calls",
+  "baseline": {
+    "version": "1.10.0",
+    "commit": "57a28f2816cd5732d3d658a1584e3508786165bd",
+    "initial_tests_run": 5,
+    "errors": 4,
+    "failures": 0
+  },
+  "candidate": {
+    "version": "1.10.1",
+    "ownership_tests": 7,
+    "python310_scoped_tests": 65,
+    "real_model_calls": 0,
+    "sixty_interrupted_closes_passed": true,
+    "same_client_preserved": true,
+    "active_and_untracked_responses_preserved": true,
+    "request_reuse_preserved": true,
+    "final_pool_error_code": "upstream_pool_timeout",
+    "metric_final_failures": 1,
+    "recovered_paused_cancelled_excluded": true
+  },
+  "test_sha256": {
+    "tests/test_pool_ownership.py": "95f1ea2f993c2813bbf6dd36f570b856a47b799ad7e337f54b2087b8b024507b",
+    "tests/test_history.py": "8855064e50146660746d7417aaddf695c3522a90cbdeda490eb291bf418fa600"
+  }
+}
