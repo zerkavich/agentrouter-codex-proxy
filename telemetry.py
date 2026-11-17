@@ -43,11 +43,17 @@ _PROCESS_NONCE = secrets.token_hex(8)
 _RECORD_SEQUENCE = count()
 REQUEST_STAGES = {'rate_limit_gate': 0, 'retry_backoff': 0,
                   'upstream_admission': 1, 'payload_inspect': 2, 'payload_prepare': 2}
+ATTEMPT_CODES = frozenset(('upstream', 'transport_connect', 'transport_timeout',
+    'transport_protocol', 'transport_pool', 'transport_other', 'retry_wait',
+    'quota_wait', 'resource_recovery', 'gzip_recovery', 'sse_error',
+    'memory_wait', 'memory_budget_exhausted', 'binding_invalidated', 'cancelled'))
+ATTEMPT_LIMIT = 16
 
 
 class RequestRecord:
     __slots__ = ('key', 'started', 'wall_time', 'method', 'endpoint', 'status', 'headers_ms',
-                 'request_bytes', 'response_bytes', 'complete', 'disconnected', 'error', 'stages', 'history_token')
+                 'request_bytes', 'response_bytes', 'complete', 'disconnected', 'error', 'stages', 'history_token',
+                 'attempts', 'attempt_count')
 
     def __init__(self, method, path):
         self.started, self.wall_time = time.perf_counter(), time.time()
@@ -60,6 +66,8 @@ class RequestRecord:
         self.error = ''
         self.stages = [0.0, 0.0, 0.0]
         self.history_token = None
+        self.attempts = None
+        self.attempt_count = 0
 
     def result(self):
         elapsed = max(0, time.perf_counter() - self.started) * 1000
@@ -78,6 +86,27 @@ class RequestRecord:
         return (self.key, os.getpid(), self.wall_time, self.method, self.endpoint, self.status, outcome,
                 round(elapsed, 3), self.headers_ms, self.request_bytes, self.response_bytes,
                 *(round(value * 1000, 3) for value in self.stages), self.error)
+
+    def attempt_detail(self):
+        return json.dumps({'events': self.attempts or [], 'total': self.attempt_count},
+                          separators=(',', ':'), allow_nan=False)
+
+
+def note_attempt(code, *, status=0, duration_s=0, wait_s=0):
+    """Fixed codes and finite numbers only; bounded even under retry storms."""
+    record = REQUEST_RECORD.get()
+    if record is None or code not in ATTEMPT_CODES:
+        return
+    duration_s = min(1000000, max(0, duration_s)) if isinstance(duration_s, (int, float)) and not isinstance(duration_s, bool) and math.isfinite(duration_s) else 0
+    wait_s = min(1000000, max(0, wait_s)) if isinstance(wait_s, (int, float)) and not isinstance(wait_s, bool) and math.isfinite(wait_s) else 0
+    status = status if isinstance(status, int) and not isinstance(status, bool) and 0 <= status <= 599 else 0
+    record.attempt_count += 1
+    if record.attempts is None:
+        record.attempts = []
+    if len(record.attempts) == ATTEMPT_LIMIT:
+        record.attempts.pop(0)
+    record.attempts.append([code, status, round(max(0, duration_s) * 1000, 3),
+                           round(max(0, wait_s) * 1000, 3)])
 
 
 def note_stream_error(code):
@@ -233,9 +262,9 @@ class HistoryStore:
                 return False
             # Accepted starts retain completion capacity even if new recording
             # is disabled or unrelated metadata saturates the queue.
-            self.pending.put_bounded(('request', record.result(), None), complete_reservation=True)
+            self.pending.put_bounded(('request', (record.result(), record.attempt_detail()), None), complete_reservation=True)
             return True
-        return self.submit('request', record.result())
+        return self.submit('request', (record.result(), record.attempt_detail()))
 
     def begin_request(self, record):
         if not self.enabled or self.stopping.is_set():
@@ -354,6 +383,9 @@ class HistoryStore:
             if 'worker_pid' not in columns:
                 db.execute('ALTER TABLE requests ADD COLUMN worker_pid INTEGER NOT NULL DEFAULT 0')
             db.execute('CREATE UNIQUE INDEX IF NOT EXISTS requests_key ON requests(request_key)')
+            # Additive schema: old runtimes can still read/write schema2 and
+            # rollback without discarding existing requests or attempt details.
+            db.execute('CREATE TABLE IF NOT EXISTS request_attempts (request_key TEXT PRIMARY KEY, detail TEXT NOT NULL)')
             db.execute("UPDATE history_meta SET value=2 WHERE key='schema'")
 
     def _prune(self, db):
@@ -364,6 +396,7 @@ class HistoryStore:
             db.execute(f'DELETE FROM {table} WHERE {timestamp} < ?', (cutoff,))
             db.execute(f'DELETE FROM {table} WHERE id <= (SELECT id FROM {table} ORDER BY id DESC LIMIT 1 OFFSET ?)', (limit,))
         db.execute('PRAGMA incremental_vacuum(16)')
+        db.execute('DELETE FROM request_attempts WHERE request_key NOT IN (SELECT request_key FROM requests WHERE request_key IS NOT NULL)')
 
     def _run(self):
         db = None
@@ -396,8 +429,12 @@ class HistoryStore:
                 try:
                     with db:
                         for kind, value, completion in batch:
-                            if kind in ('start', 'request'):
-                                db.execute(self._START_SQL if kind == 'start' else self._FINISH_SQL, value)
+                            if kind == 'start':
+                                db.execute(self._START_SQL, value)
+                            elif kind == 'request':
+                                row, detail = value
+                                db.execute(self._FINISH_SQL, row)
+                                db.execute('INSERT INTO request_attempts VALUES (?,?) ON CONFLICT(request_key) DO UPDATE SET detail=excluded.detail', (row[0], detail))
                             elif kind == 'interrupt':
                                 worker_pid, ended_at = value
                                 db.execute("UPDATE requests SET outcome='interrupted', error_code='worker_restarted', duration_ms=MAX(0,(?-started_at)*1000) WHERE outcome='active' AND worker_pid=?", (ended_at, worker_pid))
@@ -410,7 +447,7 @@ class HistoryStore:
                             elif kind == 'report':
                                 db.execute('INSERT INTO reports VALUES (NULL,?,?)', value)
                             elif kind == 'clear':
-                                for table in ('requests', 'metrics', 'events', 'reports'):
+                                for table in ('requests', 'request_attempts', 'metrics', 'events', 'reports'):
                                     db.execute('DELETE FROM ' + table)
                         # Each commit enforces the row limit, even under a sustained flood.
                         if batch or time.monotonic() >= next_maintenance:
@@ -475,6 +512,24 @@ class HistoryStore:
         rows = self._read('SELECT * FROM metrics WHERE sampled_at >= ? ORDER BY id DESC LIMIT 1440',
                           (time.time() - self.hours * 3600,))
         return {'items': rows[::-1], 'retention_hours': self.hours}
+
+    def attempts(self, identifier):
+        rows = self._read('SELECT CASE WHEN length(a.detail)<=4096 THEN a.detail END AS detail FROM requests r LEFT JOIN request_attempts a ON a.request_key=r.request_key WHERE r.id=? AND r.started_at>=? LIMIT 1',
+                          (int(identifier), time.time() - self.hours * 3600))
+        if not rows:
+            return None
+        try:
+            value = json.loads(rows[0]['detail']) if rows[0]['detail'] else {'events': [], 'total': 0}
+            # Treat a damaged or manually modified database as untrusted input.
+            events = value.get('events', [])[-ATTEMPT_LIMIT:]
+            clean = [event for event in events if isinstance(event, list) and len(event) == 4
+                     and isinstance(event[0], str) and event[0] in ATTEMPT_CODES and type(event[1]) is int and 0 <= event[1] <= 599
+                     and all(isinstance(number, (int, float)) and not isinstance(number, bool) and math.isfinite(number) and 0 <= number <= 1000000000 for number in event[2:])]
+            total = value.get('total', 0)
+            total = total if type(total) is int and 0 <= total <= 1000000 else len(clean)
+            return {'events': clean, 'total': total, 'truncated': total > len(clean)}
+        except (ValueError, TypeError, AttributeError, OverflowError):
+            return {'events': [], 'total': 0, 'truncated': False}
 
     def events(self):
         rows = self._read('SELECT * FROM events WHERE occurred_at >= ? ORDER BY id DESC LIMIT 50',

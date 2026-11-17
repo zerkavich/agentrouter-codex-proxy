@@ -35,6 +35,8 @@ SETTINGS = {
     'PROXY_CONNECT_TIMEOUT_S': {'kind': 'float', 'default': 20, 'min': 1, 'max': 120, 'group': 'network'},
     'PROXY_READ_TIMEOUT_S': {'kind': 'float', 'default': 600, 'min': 30, 'max': 3600, 'group': 'network'},
     'PROXY_VERBOSE': {'kind': 'bool', 'default': False, 'group': 'network'},
+    'PROXY_BODY_BUDGET_BYTES': {'kind': 'int', 'default': 268435456, 'min': 0, 'max': 2147483648, 'group': 'network'},
+    'PROXY_BODY_BUDGET_WAIT_S': {'kind': 'float', 'default': 60, 'min': 1, 'max': 300, 'group': 'network'},
     'PROXY_RATE_LIMIT_BASE_S': {'kind': 'float', 'default': 2, 'min': 0.05, 'max': 30, 'group': 'recovery'},
     'PROXY_RATE_LIMIT_MAX_DELAY_S': {'kind': 'float', 'default': 15, 'min': 0.05, 'max': 120, 'group': 'recovery'},
     'PROXY_MAX_RATE_LIMIT_WAIT_S': {'kind': 'float', 'default': 45, 'min': 1, 'max': 300, 'group': 'recovery'},
@@ -674,6 +676,19 @@ def attach_control(app, runtime):
                 raise ControlError('history_report_unavailable', 404)
             return Response(json.dumps(result, indent=2, allow_nan=False), media_type='application/json',
                             headers={**HEADERS, 'Content-Disposition': 'attachment; filename="proxy-auto-report-' + identifier + '.json"'})
+        except ControlError as exc:
+            return error(exc)
+
+    @router.get('/_control/api/history/attempts/{identifier}')
+    async def history_attempts(request: Request, identifier: str):
+        try:
+            checked(request)
+            if runtime.history is None or not identifier.isascii() or not identifier.isdigit() or len(identifier) > 18:
+                raise ControlError('history_attempts_unavailable', 404)
+            result = await asyncio.to_thread(runtime.history.attempts, int(identifier))
+            if result is None:
+                raise ControlError('history_attempts_unavailable', 404)
+            return JSONResponse(result, headers=HEADERS)
         except ControlError as exc:
             return error(exc)
 

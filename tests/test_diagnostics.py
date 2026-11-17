@@ -194,12 +194,18 @@ class DoctorTests(unittest.TestCase):
             "counts": {"requests_total": 3, secret: 1},
             "timings": {secret: {"count": 10}, "upstream_headers": {"count": 1, "mean_ms": 40, "prompt": secret}},
             "rate_limits": {"wait_seconds_semantics": "elapsed_gate_and_rate_limit_backoff", "wait_seconds_total": 0.12},
+            "body_memory": {"limit_bytes": 268435456, "reserved_bytes": 10, "waiters": 2,
+                            "upstream_secret": secret, "waits": -1, "timeouts": True},
             "findings": [{"code": "upstream_headers_wait", "message": secret, "kind": "current"}],
         }
         snapshot = doctor.sanitize_snapshot({**self.health, "stats": {"api_key": secret}}, data)
         self.assertNotIn(secret, json.dumps(snapshot))
         self.assertEqual(snapshot["timings"]["upstream_headers"]["mean_ms"], 40)
         self.assertEqual(snapshot["rate_limits"]["wait_seconds_total"], 0.12)
+        self.assertEqual(snapshot["body_memory"]["limit_bytes"], 268435456)
+        self.assertEqual(snapshot["body_memory"]["waiters"], 2)
+        self.assertEqual(snapshot["body_memory"]["waits"], 0)
+        self.assertEqual(snapshot["body_memory"]["timeouts"], 0)
 
     def test_legacy_collection_requests_health_only(self):
         class FakeResponse(io.BytesIO):

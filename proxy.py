@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 import gzip
@@ -61,7 +61,7 @@ from starlette.requests import ClientDisconnect
 _APP_ROOT = str(Path(__file__).resolve().parent)
 if _APP_ROOT not in sys.path:
     sys.path.insert(0, _APP_ROOT)
-from telemetry import RuntimeTimings, REQUEST_RECORD, note_stream_error
+from telemetry import RuntimeTimings, REQUEST_RECORD, note_stream_error, note_attempt
 from control import ControlRuntime, attach_control, apply_saved_settings
 
 try:
@@ -329,13 +329,18 @@ SSE_BUFFER_MAX_BYTES = max(SSE_CHUNK_MAX_BYTES, int(os.environ.get("PROXY_SSE_BU
 SSE_PRIME_MAX_BYTES = max(SSE_CHUNK_MAX_BYTES, int(os.environ.get("PROXY_SSE_PRIME_BYTES", "262144")))
 SSE_PRIME_MAX_FRAMES = max(1, int(os.environ.get("PROXY_SSE_PRIME_FRAMES", "1024")))
 LARGE_REQUEST_BODY_BYTES = 1024 * 1024
+BODY_BUDGET_BYTES = max(0, int(os.environ.get("PROXY_BODY_BUDGET_BYTES", "268435456")))
+BODY_BUDGET_WAIT_S = max(1.0, float(os.environ.get("PROXY_BODY_BUDGET_WAIT_S", "60")))
+BODY_PREALLOC_MAX_BYTES = 64 * 1024 * 1024
+BODY_GROWTH_STEP_BYTES = 8 * 1024 * 1024
+BODY_RESERVATION_FACTOR = 3
 RATE_LIMIT_SCOPE = os.environ.get("PROXY_RATE_LIMIT_SCOPE", "credential").lower()
 if RATE_LIMIT_SCOPE not in ("credential", "shared"):
     raise ValueError("PROXY_RATE_LIMIT_SCOPE must be credential or shared")
 RATE_LIMIT_MAX_PARTITIONS = max(1, int(os.environ.get("PROXY_RATE_LIMIT_PARTITIONS", "256")))
 TIMINGS = RuntimeTimings(os.environ.get("PROXY_TIMINGS", "0").lower() not in ("0", "", "false"))
 _STARTED_MONOTONIC = time.monotonic()
-VERSION = "1.9.3"
+VERSION = "1.10.0"
 _PROFILE_HASH_KEY = os.urandom(32)
 
 CLIENT_TIMEOUT = httpx.Timeout(
@@ -1159,6 +1164,7 @@ async def _send_with_transport_retry(
     last_exc = None
     for attempt in range(1, max_retries + 1):
         upload_stream = None
+        attempt_started = time.perf_counter()
         try:
             request_headers = headers
             if content is not None and len(content) >= LARGE_REQUEST_BODY_BYTES:
@@ -1184,6 +1190,8 @@ async def _send_with_transport_retry(
                 req.extensions["trace"] = upload_trace if upload_trace is not None else trace
             try:
                 response = await _send_with_capacity(client, req, stream=stream)
+                note_attempt('upstream', status=response.status_code,
+                             duration_s=time.perf_counter() - attempt_started)
                 if upload_trace is not None and upload_trace.elapsed is not None:
                     _record_upload_observation(content, headers, upload_trace.elapsed, response,
                                                header_wait_s=upload_trace.header_wait)
@@ -1197,6 +1205,10 @@ async def _send_with_transport_retry(
             last_exc = exc
             STATS["transport_retries"] += 1
             backoff_s = min(attempt * 0.75, 4.0)
+            note_attempt('transport_connect' if isinstance(exc, httpx.ConnectError) else
+                         'transport_protocol' if isinstance(exc, httpx.RemoteProtocolError) else 'transport_timeout',
+                         duration_s=time.perf_counter() - attempt_started,
+                         wait_s=backoff_s if attempt < max_retries else 0)
             logger.warning(
                 "[Transport Retry %d/%d] %s: %s. Reconnecting in %.1fs...",
                 attempt, max_retries, type(exc).__name__, str(exc), backoff_s
@@ -1211,6 +1223,9 @@ async def _send_with_transport_retry(
             if isinstance(exc, httpx.PoolTimeout):
                 STATS["pool_timeouts"] += 1
             backoff_s = min(attempt * 0.75, 4.0)
+            note_attempt('transport_pool' if isinstance(exc, httpx.PoolTimeout) else 'transport_other',
+                         duration_s=time.perf_counter() - attempt_started,
+                         wait_s=backoff_s if attempt < max_retries else 0)
             logger.error("[Transport Error %d/%d] %s. Retrying in %.1fs...", attempt, max_retries, describe_upstream_error(exc), backoff_s)
             if attempt < max_retries:
                 await asyncio.sleep(backoff_s)
@@ -1300,6 +1315,7 @@ async def health():
         "max_images_per_request": MAX_IMAGES_PER_REQUEST,
         "request_gzip_enabled": REQUEST_GZIP_ENABLED,
         "request_gzip_min_bytes": REQUEST_GZIP_MIN_BYTES,
+        "body_memory": _body_budget().snapshot(),
         "request_gzip_backend": "isal" if _native_gzip is not None else "stdlib",
         "gzip_workers": REQUEST_GZIP_WORKERS,
         "gzip_max_jobs": REQUEST_GZIP_MAX_JOBS,
@@ -1400,6 +1416,7 @@ async def diagnostics():
             "rejection_cache_entries": recent_gzip_rejections,
         },
         "counts": counts, "timings": timing_snapshot, "findings": findings,
+        "body_memory": _body_budget().snapshot(),
     }
 
 @app.post("/_diagnostics/profile")
@@ -1727,6 +1744,9 @@ async def _prime_responses_sse(
             return None
         if kind == "error":
             primed_chunks.append(raw_frame)
+            note_attempt('sse_error', status=200)
+            if 'session binding invalidated' in err_msg.lower():
+                note_attempt('binding_invalidated', status=200)
             if is_resource_mismatch_text(err_msg):
                 return await abort_result("resource_mismatch", err_code, err_msg, err_obj)
             if _is_rate_limit_error(err_code, err_msg):
@@ -2652,6 +2672,245 @@ async def _prepare_upstream_content(content: bytes, source_headers: Dict[str, st
     return compressed, headers
 
 
+class _BodyBudgetExpired(Exception):
+    pass
+
+
+class _BodyBudget:
+    """FIFO admission estimates, not a process RSS limit. One asyncio loop."""
+    __slots__ = ('limit', 'used', 'peak', 'queue', 'waits', 'timeouts')
+
+    def __init__(self, limit):
+        self.limit = limit
+        self.used = self.peak = self.waits = self.timeouts = 0
+        self.queue = deque()
+
+    def _drain(self):
+        while self.queue:
+            future, weight = self.queue[0]
+            if future.cancelled():
+                self.queue.popleft()
+                continue
+            # An oversized request runs alone rather than waiting forever.
+            if self.used and self.used + weight > self.limit:
+                break
+            self.queue.popleft()
+            self.used += weight
+            self.peak = max(self.peak, self.used)
+            future.set_result(weight)
+
+    async def acquire(self, weight):
+        if not self.limit or not weight:
+            return 0
+        if not self.queue and (not self.used or self.used + weight <= self.limit):
+            self.used += weight
+            self.peak = max(self.peak, self.used)
+            return weight
+        self.waits += 1
+        started = time.perf_counter()
+        future = asyncio.get_running_loop().create_future()
+        entry = (future, weight)
+        self.queue.append(entry)
+        try:
+            return await asyncio.wait_for(asyncio.shield(future), BODY_BUDGET_WAIT_S)
+        except BaseException as error:
+            # Cancellation after admission also returns its reserved credits.
+            if future.done() and not future.cancelled():
+                self.used -= future.result()
+            else:
+                future.cancel()
+                try:
+                    self.queue.remove(entry)
+                except ValueError:
+                    pass
+            self._drain()
+            if isinstance(error, asyncio.TimeoutError):
+                self.timeouts += 1
+                raise _BodyBudgetExpired() from None
+            raise
+        finally:
+            note_attempt('memory_wait', duration_s=time.perf_counter() - started)
+
+    def release(self, weight):
+        self.used -= weight
+        self._drain()
+
+    def snapshot(self):
+        return {'limit_bytes': self.limit, 'reserved_bytes': self.used,
+                'peak_reserved_bytes': self.peak, 'waiters': len(self.queue),
+                'waits': self.waits, 'timeouts': self.timeouts,
+                'reservation_factor': BODY_RESERVATION_FACTOR}
+
+
+_BODY_BUDGETS = weakref.WeakKeyDictionary()
+
+
+def _body_budget():
+    loop = asyncio.get_running_loop()
+    budget = _BODY_BUDGETS.get(loop)
+    if budget is None:
+        budget = _BodyBudget(BODY_BUDGET_BYTES)
+        _BODY_BUDGETS[loop] = budget
+    return budget
+
+
+class _BodyLease:
+    __slots__ = ('budget', 'weight')
+
+    def __init__(self):
+        self.budget = None
+        self.weight = 0
+
+    async def reserve(self, source_size, *, unknown=False):
+        if not BODY_BUDGET_BYTES or (source_size < LARGE_REQUEST_BODY_BYTES and not self.weight):
+            return
+        if self.budget is None:
+            self.budget = _body_budget()
+        weight = max(self.budget.limit, source_size * BODY_RESERVATION_FACTOR) if unknown else source_size * BODY_RESERVATION_FACTOR
+        if weight <= self.weight:
+            self.budget.release(self.weight - weight)
+            self.weight = weight
+            return
+        # Release before an upgrade; partial reservations can deadlock each other.
+        # Only compressed replay or a bounded prefix remains during this wait.
+        self.release()
+        self.weight = await self.budget.acquire(weight)
+
+    async def reserve_incoming(self, request, source_size, *, unknown=False):
+        if not BODY_BUDGET_BYTES or source_size < LARGE_REQUEST_BODY_BYTES:
+            return
+        budget = self.budget or _body_budget()
+        weight = max(budget.limit, source_size * BODY_RESERVATION_FACTOR) if unknown else source_size * BODY_RESERVATION_FACTOR
+        if not budget.queue and (not budget.used or budget.used + weight <= budget.limit):
+            return await self.reserve(source_size, unknown=unknown)
+        # Before the body is consumed, watch just one ASGI receive event while
+        # awaiting admission. Replay a body event exactly once; never drain and
+        # accumulate the entire upload to discover a disconnect.
+        admission = asyncio.create_task(self.reserve(source_size, unknown=unknown))
+        original_receive = request.receive
+        receive = asyncio.create_task(original_receive())
+        message = None
+        try:
+            done, _ = await asyncio.wait((admission, receive), return_when=asyncio.FIRST_COMPLETED)
+            if receive in done:
+                message = receive.result()
+                if message['type'] == 'http.disconnect':
+                    raise ClientDisconnect()
+                if message['type'] == 'http.request' and not message.get('more_body', False) and not admission.done():
+                    # A complete prefetched body needs no further body buffers.
+                    # Its next event can report a disconnected queued caller.
+                    receive = asyncio.create_task(original_receive())
+                    done, _ = await asyncio.wait((admission, receive), return_when=asyncio.FIRST_COMPLETED)
+                    if receive in done and receive.result()['type'] == 'http.disconnect':
+                        raise ClientDisconnect()
+            await admission
+        finally:
+            with anyio.CancelScope(shield=True):
+                if not receive.done():
+                    receive.cancel()
+                if not admission.done():
+                    admission.cancel()
+                await asyncio.gather(receive, admission, return_exceptions=True)
+            if message is None and receive.done() and not receive.cancelled() and receive.exception() is None:
+                message = receive.result()
+            if message is not None and message['type'] == 'http.request':
+                unread = [message]
+                async def replay():
+                    if unread:
+                        return unread.pop()
+                    request._receive = original_receive
+                    return await original_receive()
+                request._receive = replay
+
+    def shrink(self, source_size):
+        weight = min(self.weight, source_size * BODY_RESERVATION_FACTOR)
+        if self.weight != weight:
+            self.budget.release(self.weight - weight)
+            self.weight = weight
+
+    def release(self):
+        if self.weight:
+            weight, self.weight = self.weight, 0
+            self.budget.release(weight)
+
+
+def _content_length(request):
+    raw = request.headers.get('content-length', '')
+    return int(raw) if raw.isascii() and raw.isdecimal() and len(raw) <= 12 else None
+
+
+async def _read_request_body(request, lease):
+    """Single chunks are reused; incremental BytesIO avoids a join-size copy."""
+    if hasattr(request, '_body'):
+        body = await request.body()
+        await lease.reserve(len(body))
+        return body
+    hint = _content_length(request)
+    if hint is not None and hint < LARGE_REQUEST_BODY_BYTES:
+        body = await request.body()
+        # Uvicorn enforces Content-Length. Also account for direct ASGI callers
+        # supplying an inexact small hint before any large-body transforms.
+        if len(body) >= LARGE_REQUEST_BODY_BYTES:
+            await lease.reserve(len(body))
+        return body
+    if hint is not None:
+        await lease.reserve_incoming(request, hint)
+    first = output = None
+    capacity = 0
+    total = 0
+    unknown_reserved = False
+    try:
+        async for chunk in request.stream():
+            if not chunk:
+                continue
+            total += len(chunk)
+            if (hint is None or total > hint) and not unknown_reserved and total >= LARGE_REQUEST_BODY_BYTES:
+                # Unknown-length large uploads reserve exclusively, avoiding
+                # incremental capacity upgrades between multiple partial bodies.
+                await lease.reserve_incoming(request, total, unknown=True)
+                unknown_reserved = True
+            if first is None and output is None:
+                first = chunk
+                continue
+            if output is None:
+                output = io.BytesIO()
+                if hint is not None and LARGE_REQUEST_BODY_BYTES <= hint <= BODY_PREALLOC_MAX_BYTES:
+                    capacity = hint
+                    output.seek(hint - 1)
+                    output.write(b'\0')
+                    output.seek(0)
+                output.write(first)
+                first = None
+            if total > capacity and (hint is None or total > hint or hint > BODY_PREALLOC_MAX_BYTES):
+                # Grow unknown/very large bodies geometrically at first, then
+                # in bounded 8-MiB steps. Avoid repeated small reallocations.
+                growth = min(max(capacity * 2, total), BODY_GROWTH_STEP_BYTES) if capacity < BODY_GROWTH_STEP_BYTES else capacity + BODY_GROWTH_STEP_BYTES
+                capacity = max(total, growth)
+                position = output.tell()
+                output.seek(capacity - 1)
+                output.write(b'\0')
+                output.seek(position)
+            output.write(chunk)
+        if output is None:
+            body = first if first is not None else b''
+        else:
+            output.truncate(total)
+            body = output.getvalue()
+        request._body = body
+        if unknown_reserved and total * BODY_RESERVATION_FACTOR > lease.weight and lease.weight:
+            # Unknown-length uploads entered exclusively. Grow their estimate
+            # without another wait or releasing the fully assembled body.
+            weight = total * BODY_RESERVATION_FACTOR
+            lease.budget.used += weight - lease.weight
+            lease.budget.peak = max(lease.budget.peak, lease.budget.used)
+            lease.weight = weight
+        lease.shrink(total)
+        return body
+    finally:
+        if output is not None:
+            output.close()
+
+
 @app.post("/v1/responses")
 @app.post("/responses")
 async def handle_responses(request: Request):
@@ -2668,32 +2927,49 @@ async def _prepare_responses_request(request: Request):
     STATS["requests_total"] += 1
     STATS["responses_requests"] += 1
 
+    lease = _BodyLease()
+    try:
+        return await _prepare_budgeted_responses(request, lease)
+    except _BodyBudgetExpired:
+        note_attempt('memory_budget_exhausted')
+        return JSONResponse(status_code=503, headers={'Retry-After': '2'},
+                            content={'error': {'type': 'proxy_memory_busy',
+                                               'message': 'Large request memory admission timed out; retry shortly'}})
+    except ClientDisconnect:
+        note_attempt('cancelled')
+        return Response(status_code=499)
+    finally:
+        lease.release()
+
+
+async def _prepare_budgeted_responses(request: Request, lease):
     try:
         with TIMINGS.measure("client_upload"):
-            body_bytes = await request.body()
+            body_bytes = await _read_request_body(request, lease)
     except ClientDisconnect:
         STATS["client_disconnects_during_upload"] += 1
+        note_attempt('cancelled')
         return Response(status_code=499)
     body_size = len(body_bytes)
     source_headers = _filter_headers(dict(request.headers))
     rate_state = _acquire_rate_limit_state(source_headers)
     async with _watch_client_disconnect(request):
         try:
-            operation = _handle_responses(request, body_bytes, source_headers, rate_state)
+            operation = _handle_responses(request, body_bytes, source_headers, rate_state, lease)
             # Only the handler and receive cache own replay bytes while awaiting.
             del body_bytes
             response = await operation
-            if isinstance(response, UpstreamStreamingResponse) and body_size >= LARGE_REQUEST_BODY_BYTES:
-                # SSE has committed; neither recovery nor upload needs the body
-                # now. Keep the cache attribute to mark the receive side consumed.
-                request._body = b""
             return response
         finally:
+            if body_size >= LARGE_REQUEST_BODY_BYTES:
+                # No further recovery or upload needs the body, including after
+                # cancellation. Keep the cache to mark the receive side consumed.
+                request._body = b""
             _release_rate_limit_state(rate_state)
 
 
 async def _handle_responses(request: Request, body_bytes: bytes, source_headers: Dict[str, str],
-                            rate_state: Dict[str, Any]):
+                            rate_state: Dict[str, Any], lease):
     with TIMINGS.measure("payload_inspect"):
         body_json = (_decode_responses_payload(body_bytes, chunked=True)
                      if _payload_needs_image_pruning(body_bytes, MAX_IMAGES_PER_REQUEST) else None)
@@ -2728,6 +3004,7 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
         # Any fallback decodes the current request; removed images are not needed.
         body_bytes = b""
         body_json = active_payload = None
+        lease.shrink(len(req_content))
 
     retry_start = time.monotonic()
     transient_retries = 0
@@ -2735,20 +3012,23 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
     max_mismatch_retries = 3
     last_failure_response: Optional[Response] = None
 
-    def plain_content() -> bytes:
+    async def plain_content() -> bytes:
         nonlocal req_content
         if req_content is None:
+            admitted = await _await_upstream_work(request, lease.reserve(compressed_plain_size))
+            if admitted is _CLIENT_DISCONNECTED:
+                raise ClientDisconnect()
             # Only our own gzip is reconstructed, and only when recovery or a
             # 415 needs the exact current JSON. Normal retries replay gzip as is.
             req_content = _decompress_proxy_gzip(wire_content, compressed_plain_size)
         return req_content
 
-    def activate_stateless_fallback(source_label: str, detail: str) -> bool:
+    async def activate_stateless_fallback(source_label: str, detail: str) -> bool:
         nonlocal fallback_active, active_payload, body_json, mismatch_attempts, req_content, wire_content, proxy_added_gzip
         STATS["resource_mismatches_caught"] += 1
         logger.warning("[Resource Mismatch] %s: %s", source_label, detail[:160])
         if not fallback_active and body_json is None:
-            body_json = _decode_responses_payload(plain_content(), chunked=True)
+            body_json = _decode_responses_payload(await plain_content(), chunked=True)
         if not fallback_active and body_json is not None:
             fallback_active = True
             STATS["stateless_fallbacks_applied"] += 1
@@ -2767,6 +3047,8 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
             wire_content = req_content if gzip_fallback_active else None
             # Subsequent attempts reuse these bytes, not the decoded trees.
             body_json = active_payload = None
+            lease.shrink(len(req_content))
+            note_attempt('resource_recovery')
             logger.warning("[Recovery] Activating sanitized stateless payload to bypass cross-resource pinning!")
             return True
         mismatch_attempts += 1
@@ -2800,6 +3082,7 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
             return False, suggested_ra
 
         wait_s = delay_s
+        note_attempt('quota_wait' if is_rate_limit else 'retry_wait', wait_s=wait_s)
         transient_retries += 1
         logger.warning(
             "[%s] Retrying (%d/%d) after %.1fs: %s",
@@ -2820,6 +3103,7 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
                 compressed_plain_size = payload_size
                 req_content = None
                 request._body = b""
+                lease.shrink(len(wire_content))
             if REQUEST_GZIP_ENABLED and payload_size >= REQUEST_GZIP_MIN_BYTES and await _client_disconnected(request):
                 return Response(status_code=499)
 
@@ -2891,7 +3175,7 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
                     return Response(status_code=499)
 
                 if prime.status == "resource_mismatch":
-                    if activate_stateless_fallback("SSE 200 error", prime.error_message):
+                    if await activate_stateless_fallback("SSE 200 error", prime.error_message):
                         await asyncio.sleep((RETRY_DELAY_MS / 1000.0) * max(1, mismatch_attempts))
                         continue
                     return JSONResponse(
@@ -2941,8 +3225,10 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
                     bool(parsed_body.get("error")) or parsed_body.get("status") == "failed"
                 ):
                     code, msg, err_obj = _extract_error_fields(parsed_body, "")
+                    if 'session binding invalidated' in msg.lower():
+                        note_attempt('binding_invalidated', status=200)
                     if is_resource_mismatch_text(msg):
-                        if activate_stateless_fallback("JSON 200 error", msg):
+                        if await activate_stateless_fallback("JSON 200 error", msg):
                             continue
                     elif _is_rate_limit_error(code, msg) or _is_transient_error(code, msg):
                         is_rl = _is_rate_limit_error(code, msg)
@@ -2977,15 +3263,18 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
                 # Keep subsequent retries and stateless recovery plain as well.
                 gzip_fallback_active = True
                 _record_gzip_rejection(source_headers)
-                wire_content = plain_content()
+                wire_content = await plain_content()
                 proxy_added_gzip = False
                 headers = source_headers
                 STATS["gzip_fallbacks"] += 1
+                note_attempt('gzip_recovery', status=415)
                 logger.warning("[Request Compression] Upstream HTTP 415; retrying without proxy-added gzip")
                 continue
 
+            if 'session binding invalidated' in err_text.lower():
+                note_attempt('binding_invalidated', status=resp.status_code)
             if is_resource_mismatch_error(resp.status_code, err_text):
-                if activate_stateless_fallback("Upstream 400", err_text):
+                if await activate_stateless_fallback("Upstream 400", err_text):
                     if mismatch_attempts > 0:
                         await asyncio.sleep((RETRY_DELAY_MS / 1000.0) * mismatch_attempts)
                     continue
@@ -3012,6 +3301,8 @@ async def _handle_responses(request: Request, body_bytes: bytes, source_headers:
             logger.error("[Forwarding Error %d] %s", resp.status_code, err_text[:200])
             return Response(content=err_body, status_code=resp.status_code, headers=resp_headers)
 
+        except (_BodyBudgetExpired, ClientDisconnect):
+            raise
         except Exception as exc:
             description = describe_upstream_error(exc)
             logger.error("[Attempt Exception] %s", description)
@@ -3039,6 +3330,8 @@ CONTROL = ControlRuntime(Path(__file__).resolve().parent, VERSION, PORT, health,
         'PROXY_CONNECT_TIMEOUT_S': CONNECT_TIMEOUT_S,
         'PROXY_READ_TIMEOUT_S': READ_TIMEOUT_S,
         'PROXY_VERBOSE': VERBOSE,
+        'PROXY_BODY_BUDGET_BYTES': BODY_BUDGET_BYTES,
+        'PROXY_BODY_BUDGET_WAIT_S': BODY_BUDGET_WAIT_S,
         'PROXY_RATE_LIMIT_BASE_S': RATE_LIMIT_BASE_DELAY_S,
         'PROXY_RATE_LIMIT_MAX_DELAY_S': RATE_LIMIT_MAX_DELAY_S,
         'PROXY_MAX_RATE_LIMIT_WAIT_S': MAX_RATE_LIMIT_WAIT_S,

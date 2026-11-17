@@ -130,6 +130,7 @@ def sanitize_snapshot(health, data=None):
     raw_pool = _mapping(data.get("connection_pool"))
     raw_rate = _mapping(data.get("rate_limits"))
     raw_gzip = _mapping(data.get("compression"))
+    raw_body = _mapping(data.get("body_memory", health.get("body_memory")))
     raw_timings = _mapping(data.get("timings"))
     elapsed_wait = extended and raw_rate.get("wait_seconds_semantics") == "elapsed_gate_and_rate_limit_backoff"
     snapshot = {
@@ -163,6 +164,8 @@ def sanitize_snapshot(health, data=None):
             "backend": raw_gzip.get("backend", health.get("request_gzip_backend")) if raw_gzip.get("backend", health.get("request_gzip_backend")) in ("isal", "stdlib") else "unknown",
             "jobs_inflight": _number(raw_gzip.get("jobs_inflight", health.get("gzip_jobs_inflight")), 0),
         },
+        "body_memory": {name: _number(raw_body.get(name), 0) for name in (
+            "limit_bytes", "reserved_bytes", "peak_reserved_bytes", "waiters", "waits", "timeouts", "reservation_factor")},
         "counts": counts, "timings": {}, "findings": [],
     }
     for stage in STAGES:

@@ -1,0 +1,11 @@
+{
+  "status": "passed",
+  "checks": [
+    "Russian attempts expand and load",
+    "English details contain no untranslated text",
+    "Memory reservation counters reach the browser",
+    "Memory settings use visible labels"
+  ],
+  "errors": [],
+  "providerCalls": 0
+}

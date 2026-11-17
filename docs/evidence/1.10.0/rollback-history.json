@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "checked_at": "2026-11-17T06:23:12.889790+00:00",
+  "old_writer_commit": "bbad7506f5cda85df5fad5781c508bdb78005854",
+  "provider_calls": 0,
+  "checks": [
+    "old writer reads candidate rows",
+    "old writer completes a new request",
+    "candidate attempts survive rollback",
+    "candidate prunes old-writer orphans",
+    "schema stays 2"
+  ]
+}

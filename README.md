@@ -2,7 +2,7 @@
 
 A lightweight local compatibility proxy that fixes cross-resource session errors when using **Codex Desktop** or **Codex CLI** with **AgentRouter**.
 
-Version **1.9.3** releases plain bodies after proxy-added gzip, processes long JSON strings as bounded UTF-8 fragments, reduces history encoding work, and estimates upload speed from body writes rather than server response waits. See [changes and measurements](docs/gzip-replay-1.9.3.md) and the [previous recovery/update improvements](docs/peak-memory-1.9.2.md).
+Version **1.10.0** reduces large incoming-body copies, adds configurable aggregate memory admission, and shows bounded retry/recovery details in Russian/English request history. See [changes, measurements and tradeoffs](docs/incoming-attempts-1.10.0.md) and the [previous gzip/recovery improvements](docs/gzip-replay-1.9.3.md).
 
 The independent browser panel at **http://127.0.0.1:8789/** provides automatic worker recovery, bounded request/metrics history and Russian/English interfaces. API traffic stays on **127.0.0.1:8788**, with a default 256 KiB per-stream queue. See [browser features and measurements](docs/resilience-1.9.0.md).
 
@@ -60,7 +60,8 @@ Use the same resource that created the item to access it. [trace_id=...]
 6. **Cancellation Cleanup**: Releases pending upstream sends, partially read JSON/error bodies and SSE responses when a client disconnects or downstream delivery fails, preventing abandoned connections from exhausting HTTPX's pool.
 7. **Native Acceleration**: Uses ISA-L gzip and Uvicorn's native HTTP parser, prepares the connection pool during startup, and avoids redundant copying and timer allocation while draining buffered SSE data.
 8. **Quota Recovery & Diagnostics**: Fair cancellable launches preserve newer cooldowns against older successes, honor explicit retry hints and expose sanitized live status plus temporary timing capture.
-9. **Browser Management**: The bundled RU/English panel provides overview, request history, diagnostics, 30 tuning settings and explicit update controls. An independent supervisor listener keeps history and recovery accessible when the worker hangs. A prepared shared installation verifies packages, waits for active requests, checks the new worker and rolls back startup failures.
+9. **Browser Management**: The bundled RU/English panel provides overview, request history with expandable attempts, diagnostics, 32 tuning settings and explicit update controls. An independent supervisor listener keeps history and recovery accessible when the worker hangs. A prepared shared installation verifies packages, waits for active requests, checks the new worker and rolls back startup failures.
+10. **Large Request Memory**: Incoming bodies use single-chunk reuse or incremental assembly. A configurable 256 MiB default reservation budget coordinates large parallel requests; small calls bypass the queue. Queueing reduces peak memory at the cost of delaying some large calls. The budget is an estimate, not a strict process RAM cap.
 
 ---
 

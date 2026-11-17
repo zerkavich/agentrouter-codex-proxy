@@ -1,0 +1,2179 @@
+{
+  "status": "passed",
+  "started_at": "2026-11-17T07:42:46.355137+00:00",
+  "baseline_commit": "bbad7506f5cda85df5fad5781c508bdb78005854",
+  "runtime_sha256": {
+    "baseline": {
+      "proxy.py": "e0991fe6429a83c02fa94f003ca82d40c124b1fd8ae3cf0f8c6b5523d7da117e",
+      "telemetry.py": "9c907e17230dff5a2829dce988b7cfec939749b94a7253eb9e06ac0cd1ffae3b",
+      "control.py": "15476ec89757d556739e31b559563e3148ed165be40feb48e4940ebbd83b14dc",
+      "doctor.py": "ab503763e7aa3bf2af743b91c3c3d15ec1818a5619525abd455bd418286d714b",
+      "panel_updates.py": "1570038b8641067f111c3c61cc51495ea240e3f8d62e3f9ddcbc1a45fbbfdad7",
+      "update_guard.py": "7c00f87e2c50b8d9d95af096ced6d731d332f417e4578911bd83c12260602151"
+    },
+    "candidate": {
+      "proxy.py": "1f95883a069c62441c2fcf99617211925a59169df1dd0b1053ee400e40f8c4bb",
+      "telemetry.py": "4c6069eec434b2d8add69a67f15a99295d98b5c230936823f3338bdc829f7976",
+      "control.py": "a34646c3ac7a883fde9d78979d262944a62d652776ea05705d0cc1eb907cfb92",
+      "doctor.py": "2facc0b3fd38eb5e2c32a728cd9bd9ad068962f019f7081113a3c728ea9e81e8",
+      "panel_updates.py": "94a29884c2ca7e49a10866d792cb38e58b48207fa1eb82ad92a9cdd1ccf18562",
+      "update_guard.py": "5d3b3fb3ed20e4d6db70fb6d4f2b3bdf5cd3f2524eacb14dc2c8aa7ba30c869f"
+    }
+  },
+  "provider_calls": 0,
+  "python": "3.12.6",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "assembly": [
+    {
+      "profile": "baseline",
+      "status": "passed",
+      "mode": "memory",
+      "samples": [
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 0,
+          "assembly_ms": null,
+          "current_python_bytes": 1049305,
+          "peak_python_bytes": 2100321
+        },
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 1,
+          "assembly_ms": null,
+          "current_python_bytes": 1049281,
+          "peak_python_bytes": 2100321
+        },
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 2,
+          "assembly_ms": null,
+          "current_python_bytes": 1049281,
+          "peak_python_bytes": 2100321
+        },
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 3,
+          "assembly_ms": null,
+          "current_python_bytes": 1049281,
+          "peak_python_bytes": 2100321
+        },
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 4,
+          "assembly_ms": null,
+          "current_python_bytes": 1049281,
+          "peak_python_bytes": 2100321
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 0,
+          "assembly_ms": null,
+          "current_python_bytes": 1049281,
+          "peak_python_bytes": 2100321
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 1,
+          "assembly_ms": null,
+          "current_python_bytes": 1049281,
+          "peak_python_bytes": 2100321
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 2,
+          "assembly_ms": null,
+          "current_python_bytes": 1049281,
+          "peak_python_bytes": 2100321
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 3,
+          "assembly_ms": null,
+          "current_python_bytes": 1049281,
+          "peak_python_bytes": 2100321
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 4,
+          "assembly_ms": null,
+          "current_python_bytes": 1049281,
+          "peak_python_bytes": 2100321
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 0,
+          "assembly_ms": null,
+          "current_python_bytes": 4195009,
+          "peak_python_bytes": 8397617
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 1,
+          "assembly_ms": null,
+          "current_python_bytes": 4195009,
+          "peak_python_bytes": 8397617
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 2,
+          "assembly_ms": null,
+          "current_python_bytes": 4195009,
+          "peak_python_bytes": 8397617
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 3,
+          "assembly_ms": null,
+          "current_python_bytes": 4195009,
+          "peak_python_bytes": 8397617
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 4,
+          "assembly_ms": null,
+          "current_python_bytes": 4195009,
+          "peak_python_bytes": 8397617
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 0,
+          "assembly_ms": null,
+          "current_python_bytes": 4195009,
+          "peak_python_bytes": 8397617
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 1,
+          "assembly_ms": null,
+          "current_python_bytes": 4195009,
+          "peak_python_bytes": 8397617
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 2,
+          "assembly_ms": null,
+          "current_python_bytes": 4195009,
+          "peak_python_bytes": 8397617
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 3,
+          "assembly_ms": null,
+          "current_python_bytes": 4195009,
+          "peak_python_bytes": 8397617
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 4,
+          "assembly_ms": null,
+          "current_python_bytes": 4195009,
+          "peak_python_bytes": 8397617
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 0,
+          "assembly_ms": null,
+          "current_python_bytes": 16777921,
+          "peak_python_bytes": 33586673
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 1,
+          "assembly_ms": null,
+          "current_python_bytes": 16777921,
+          "peak_python_bytes": 33586673
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 2,
+          "assembly_ms": null,
+          "current_python_bytes": 16777921,
+          "peak_python_bytes": 33586673
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 3,
+          "assembly_ms": null,
+          "current_python_bytes": 16777921,
+          "peak_python_bytes": 33586673
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 4,
+          "assembly_ms": null,
+          "current_python_bytes": 16777921,
+          "peak_python_bytes": 33586673
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 0,
+          "assembly_ms": null,
+          "current_python_bytes": 16777921,
+          "peak_python_bytes": 33586673
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 1,
+          "assembly_ms": null,
+          "current_python_bytes": 16777921,
+          "peak_python_bytes": 33586673
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 2,
+          "assembly_ms": null,
+          "current_python_bytes": 16777921,
+          "peak_python_bytes": 33586673
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 3,
+          "assembly_ms": null,
+          "current_python_bytes": 16777921,
+          "peak_python_bytes": 33586673
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 4,
+          "assembly_ms": null,
+          "current_python_bytes": 16777921,
+          "peak_python_bytes": 33586673
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 0,
+          "assembly_ms": null,
+          "current_python_bytes": 33555137,
+          "peak_python_bytes": 67172049
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 1,
+          "assembly_ms": null,
+          "current_python_bytes": 33555137,
+          "peak_python_bytes": 67172049
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 2,
+          "assembly_ms": null,
+          "current_python_bytes": 33555137,
+          "peak_python_bytes": 67172049
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 3,
+          "assembly_ms": null,
+          "current_python_bytes": 33555137,
+          "peak_python_bytes": 67172049
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 4,
+          "assembly_ms": null,
+          "current_python_bytes": 33555137,
+          "peak_python_bytes": 67172049
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 0,
+          "assembly_ms": null,
+          "current_python_bytes": 33555137,
+          "peak_python_bytes": 67172049
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 1,
+          "assembly_ms": null,
+          "current_python_bytes": 33555137,
+          "peak_python_bytes": 67172049
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 2,
+          "assembly_ms": null,
+          "current_python_bytes": 33555137,
+          "peak_python_bytes": 67172049
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 3,
+          "assembly_ms": null,
+          "current_python_bytes": 33555137,
+          "peak_python_bytes": 67172049
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 4,
+          "assembly_ms": null,
+          "current_python_bytes": 33555137,
+          "peak_python_bytes": 67172049
+        }
+      ],
+      "provider_calls": 0
+    },
+    {
+      "profile": "candidate",
+      "status": "passed",
+      "mode": "memory",
+      "samples": [
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 0,
+          "assembly_ms": null,
+          "current_python_bytes": 1050833,
+          "peak_python_bytes": 1248529
+        },
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 1,
+          "assembly_ms": null,
+          "current_python_bytes": 1049721,
+          "peak_python_bytes": 1247441
+        },
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 2,
+          "assembly_ms": null,
+          "current_python_bytes": 1049713,
+          "peak_python_bytes": 1247433
+        },
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 3,
+          "assembly_ms": null,
+          "current_python_bytes": 1049705,
+          "peak_python_bytes": 1247425
+        },
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 4,
+          "assembly_ms": null,
+          "current_python_bytes": 1049697,
+          "peak_python_bytes": 1247417
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 0,
+          "assembly_ms": null,
+          "current_python_bytes": 1049705,
+          "peak_python_bytes": 1247361
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 1,
+          "assembly_ms": null,
+          "current_python_bytes": 1049665,
+          "peak_python_bytes": 1247353
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 2,
+          "assembly_ms": null,
+          "current_python_bytes": 1049649,
+          "peak_python_bytes": 1247337
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 3,
+          "assembly_ms": null,
+          "current_python_bytes": 1049641,
+          "peak_python_bytes": 1247329
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 4,
+          "assembly_ms": null,
+          "current_python_bytes": 1049633,
+          "peak_python_bytes": 1247321
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 0,
+          "assembly_ms": null,
+          "current_python_bytes": 4195369,
+          "peak_python_bytes": 4393089
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 1,
+          "assembly_ms": null,
+          "current_python_bytes": 4195361,
+          "peak_python_bytes": 4393081
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 2,
+          "assembly_ms": null,
+          "current_python_bytes": 4195353,
+          "peak_python_bytes": 4393073
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 3,
+          "assembly_ms": null,
+          "current_python_bytes": 4195345,
+          "peak_python_bytes": 4393065
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 4,
+          "assembly_ms": null,
+          "current_python_bytes": 4195337,
+          "peak_python_bytes": 4393057
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 0,
+          "assembly_ms": null,
+          "current_python_bytes": 4195305,
+          "peak_python_bytes": 4393025
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 1,
+          "assembly_ms": null,
+          "current_python_bytes": 4195297,
+          "peak_python_bytes": 4393017
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 2,
+          "assembly_ms": null,
+          "current_python_bytes": 4195289,
+          "peak_python_bytes": 4393009
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 3,
+          "assembly_ms": null,
+          "current_python_bytes": 4195281,
+          "peak_python_bytes": 4393001
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 4,
+          "assembly_ms": null,
+          "current_python_bytes": 4195273,
+          "peak_python_bytes": 4392993
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 0,
+          "assembly_ms": null,
+          "current_python_bytes": 16778193,
+          "peak_python_bytes": 16975913
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 1,
+          "assembly_ms": null,
+          "current_python_bytes": 16778185,
+          "peak_python_bytes": 16975905
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 2,
+          "assembly_ms": null,
+          "current_python_bytes": 16778177,
+          "peak_python_bytes": 16975897
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 3,
+          "assembly_ms": null,
+          "current_python_bytes": 16778161,
+          "peak_python_bytes": 16975881
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 4,
+          "assembly_ms": null,
+          "current_python_bytes": 16778153,
+          "peak_python_bytes": 16975873
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 0,
+          "assembly_ms": null,
+          "current_python_bytes": 16778129,
+          "peak_python_bytes": 16975849
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 1,
+          "assembly_ms": null,
+          "current_python_bytes": 16778121,
+          "peak_python_bytes": 16975841
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 2,
+          "assembly_ms": null,
+          "current_python_bytes": 16778113,
+          "peak_python_bytes": 16975833
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 3,
+          "assembly_ms": null,
+          "current_python_bytes": 16778113,
+          "peak_python_bytes": 16975833
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 4,
+          "assembly_ms": null,
+          "current_python_bytes": 16778113,
+          "peak_python_bytes": 16975833
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 0,
+          "assembly_ms": null,
+          "current_python_bytes": 33555345,
+          "peak_python_bytes": 33753065
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 1,
+          "assembly_ms": null,
+          "current_python_bytes": 33555345,
+          "peak_python_bytes": 33753065
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 2,
+          "assembly_ms": null,
+          "current_python_bytes": 33555345,
+          "peak_python_bytes": 33753065
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 3,
+          "assembly_ms": null,
+          "current_python_bytes": 33555345,
+          "peak_python_bytes": 33753065
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 4,
+          "assembly_ms": null,
+          "current_python_bytes": 33555345,
+          "peak_python_bytes": 33753065
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 0,
+          "assembly_ms": null,
+          "current_python_bytes": 33555329,
+          "peak_python_bytes": 33753049
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 1,
+          "assembly_ms": null,
+          "current_python_bytes": 33555329,
+          "peak_python_bytes": 33753049
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 2,
+          "assembly_ms": null,
+          "current_python_bytes": 33555329,
+          "peak_python_bytes": 33753049
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 3,
+          "assembly_ms": null,
+          "current_python_bytes": 33555329,
+          "peak_python_bytes": 33753049
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 4,
+          "assembly_ms": null,
+          "current_python_bytes": 33555329,
+          "peak_python_bytes": 33753049
+        }
+      ],
+      "provider_calls": 0
+    },
+    {
+      "profile": "baseline",
+      "status": "passed",
+      "mode": "timing",
+      "samples": [
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 0,
+          "assembly_ms": 0.8202999997592997,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 1,
+          "assembly_ms": 1.0564999993221136,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 2,
+          "assembly_ms": 1.0385999994468875,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 3,
+          "assembly_ms": 0.91219999922032,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 4,
+          "assembly_ms": 0.8275000000139698,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 0,
+          "assembly_ms": 0.8457000003545545,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 1,
+          "assembly_ms": 1.0407000008854084,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 2,
+          "assembly_ms": 0.8440999990853015,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 3,
+          "assembly_ms": 0.8374999997613486,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 4,
+          "assembly_ms": 0.8596999996370869,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 0,
+          "assembly_ms": 3.627099998993799,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 1,
+          "assembly_ms": 3.7391999994724756,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 2,
+          "assembly_ms": 3.435499998886371,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 3,
+          "assembly_ms": 3.426200000831159,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 4,
+          "assembly_ms": 3.4469000001990935,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 0,
+          "assembly_ms": 5.521799999769428,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 1,
+          "assembly_ms": 3.0537000002368586,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 2,
+          "assembly_ms": 3.3612999995966675,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 3,
+          "assembly_ms": 3.3292000007349998,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 4,
+          "assembly_ms": 3.4143999982916284,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 0,
+          "assembly_ms": 14.905700001691002,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 1,
+          "assembly_ms": 14.215799999874434,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 2,
+          "assembly_ms": 14.300199998615426,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 3,
+          "assembly_ms": 14.375400000062655,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 4,
+          "assembly_ms": 14.05960000010964,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 0,
+          "assembly_ms": 14.527000001180568,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 1,
+          "assembly_ms": 18.539700000474113,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 2,
+          "assembly_ms": 15.40709999972023,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 3,
+          "assembly_ms": 14.41789999989851,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 4,
+          "assembly_ms": 14.731100000062725,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 0,
+          "assembly_ms": 34.94419999879028,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 1,
+          "assembly_ms": 29.444499999954132,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 2,
+          "assembly_ms": 29.274999998960993,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 3,
+          "assembly_ms": 30.186399999365676,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 4,
+          "assembly_ms": 29.840999999578344,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 0,
+          "assembly_ms": 27.46140000090236,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 1,
+          "assembly_ms": 29.611500000100932,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 2,
+          "assembly_ms": 29.495499999029562,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 3,
+          "assembly_ms": 29.645099999470403,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 4,
+          "assembly_ms": 31.694499999503023,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        }
+      ],
+      "provider_calls": 0
+    },
+    {
+      "profile": "candidate",
+      "status": "passed",
+      "mode": "timing",
+      "samples": [
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 0,
+          "assembly_ms": 0.4515999989962438,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 1,
+          "assembly_ms": 0.41339999916090164,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 2,
+          "assembly_ms": 0.4233999989082804,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 3,
+          "assembly_ms": 0.4729999982373556,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": true,
+          "sample": 4,
+          "assembly_ms": 0.7962999989103992,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 0,
+          "assembly_ms": 0.5805000000691507,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 1,
+          "assembly_ms": 0.48470000001543667,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 2,
+          "assembly_ms": 0.4329999992478406,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 3,
+          "assembly_ms": 0.4716000003099907,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 1,
+          "known_length": false,
+          "sample": 4,
+          "assembly_ms": 0.4540999998425832,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 0,
+          "assembly_ms": 1.7487000004621223,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 1,
+          "assembly_ms": 1.7556000002514338,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 2,
+          "assembly_ms": 1.5636999996786471,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 3,
+          "assembly_ms": 1.5894999996817205,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 4,
+          "assembly_ms": 1.81700000030105,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 0,
+          "assembly_ms": 2.1491999996214872,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 1,
+          "assembly_ms": 2.1974999999656575,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 2,
+          "assembly_ms": 2.6739999993878882,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 3,
+          "assembly_ms": 2.4193000008381205,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 4,
+          "assembly_ms": 2.6431000005686656,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 0,
+          "assembly_ms": 7.253200001287041,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 1,
+          "assembly_ms": 7.085700000970974,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 2,
+          "assembly_ms": 7.070999999996275,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 3,
+          "assembly_ms": 7.293799999388284,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": true,
+          "sample": 4,
+          "assembly_ms": 6.9614999993063975,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 0,
+          "assembly_ms": 13.494299999365467,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 1,
+          "assembly_ms": 12.052400001266506,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 2,
+          "assembly_ms": 11.868800000229385,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 3,
+          "assembly_ms": 12.071999999534455,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 16,
+          "known_length": false,
+          "sample": 4,
+          "assembly_ms": 12.99500000095577,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 0,
+          "assembly_ms": 14.31349999984377,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 1,
+          "assembly_ms": 14.324899999337504,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 2,
+          "assembly_ms": 15.238799998769537,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 3,
+          "assembly_ms": 15.46760000019276,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": true,
+          "sample": 4,
+          "assembly_ms": 14.390399999683723,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 0,
+          "assembly_ms": 33.84430000005523,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 1,
+          "assembly_ms": 35.84869999940565,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 2,
+          "assembly_ms": 31.912399999782792,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 3,
+          "assembly_ms": 35.313500000484055,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 32,
+          "known_length": false,
+          "sample": 4,
+          "assembly_ms": 35.23909999967145,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        }
+      ],
+      "provider_calls": 0
+    }
+  ],
+  "concurrent": [
+    {
+      "status": "passed",
+      "profile": "baseline",
+      "epoch": 0,
+      "mode": "memory",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 0,
+      "max_active_large": 8,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 8,
+        "invalid": 0,
+        "body_memory": null,
+        "memory": {
+          "rss_bytes": 67252224,
+          "private_bytes": 54272000
+        },
+        "current_python_bytes": 2069890,
+        "peak_python_bytes": 303253302
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": 303253302,
+      "sampled_peak_rss_bytes": 342384640,
+      "sampled_peak_private_bytes": 334843904,
+      "initial_memory": {
+        "rss_bytes": 63303680,
+        "private_bytes": 49393664
+      },
+      "metadata_samples": 84,
+      "small_latency": null,
+      "large_latency": null,
+      "makespan_s": null
+    },
+    {
+      "status": "passed",
+      "profile": "candidate_unlimited",
+      "epoch": 0,
+      "mode": "memory",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 0,
+      "max_active_large": 8,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 8,
+        "invalid": 0,
+        "body_memory": {
+          "limit_bytes": 0,
+          "reserved_bytes": 0,
+          "peak_reserved_bytes": 0,
+          "waiters": 0,
+          "waits": 0,
+          "timeouts": 0,
+          "reservation_factor": 3
+        },
+        "memory": {
+          "rss_bytes": 66961408,
+          "private_bytes": 53899264
+        },
+        "current_python_bytes": 2049626,
+        "peak_python_bytes": 272624475
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": 272624475,
+      "sampled_peak_rss_bytes": 337190912,
+      "sampled_peak_private_bytes": 324378624,
+      "initial_memory": {
+        "rss_bytes": 63193088,
+        "private_bytes": 49537024
+      },
+      "metadata_samples": 81,
+      "small_latency": null,
+      "large_latency": null,
+      "makespan_s": null
+    },
+    {
+      "status": "passed",
+      "profile": "candidate_budget",
+      "epoch": 0,
+      "mode": "memory",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 268435456,
+      "max_active_large": 2,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 2,
+        "invalid": 0,
+        "body_memory": {
+          "limit_bytes": 268435456,
+          "reserved_bytes": 0,
+          "peak_reserved_bytes": 201326784,
+          "waiters": 0,
+          "waits": 6,
+          "timeouts": 0,
+          "reservation_factor": 3
+        },
+        "memory": {
+          "rss_bytes": 67137536,
+          "private_bytes": 53415936
+        },
+        "current_python_bytes": 1175236,
+        "peak_python_bytes": 70506590
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": 70506590,
+      "sampled_peak_rss_bytes": 134897664,
+      "sampled_peak_private_bytes": 120709120,
+      "initial_memory": {
+        "rss_bytes": 63860736,
+        "private_bytes": 49848320
+      },
+      "metadata_samples": 277,
+      "small_latency": null,
+      "large_latency": null,
+      "makespan_s": null
+    },
+    {
+      "status": "passed",
+      "profile": "candidate_budget",
+      "epoch": 1,
+      "mode": "memory",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 268435456,
+      "max_active_large": 2,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 2,
+        "invalid": 0,
+        "body_memory": {
+          "limit_bytes": 268435456,
+          "reserved_bytes": 0,
+          "peak_reserved_bytes": 201326784,
+          "waiters": 0,
+          "waits": 6,
+          "timeouts": 0,
+          "reservation_factor": 3
+        },
+        "memory": {
+          "rss_bytes": 67018752,
+          "private_bytes": 53649408
+        },
+        "current_python_bytes": 1151384,
+        "peak_python_bytes": 70507910
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": 70507910,
+      "sampled_peak_rss_bytes": 134983680,
+      "sampled_peak_private_bytes": 120897536,
+      "initial_memory": {
+        "rss_bytes": 63860736,
+        "private_bytes": 49987584
+      },
+      "metadata_samples": 275,
+      "small_latency": null,
+      "large_latency": null,
+      "makespan_s": null
+    },
+    {
+      "status": "passed",
+      "profile": "candidate_unlimited",
+      "epoch": 1,
+      "mode": "memory",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 0,
+      "max_active_large": 8,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 8,
+        "invalid": 0,
+        "body_memory": {
+          "limit_bytes": 0,
+          "reserved_bytes": 0,
+          "peak_reserved_bytes": 0,
+          "waiters": 0,
+          "waits": 0,
+          "timeouts": 0,
+          "reservation_factor": 3
+        },
+        "memory": {
+          "rss_bytes": 67854336,
+          "private_bytes": 54788096
+        },
+        "current_python_bytes": 2082935,
+        "peak_python_bytes": 272684072
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": 272684072,
+      "sampled_peak_rss_bytes": 337997824,
+      "sampled_peak_private_bytes": 325169152,
+      "initial_memory": {
+        "rss_bytes": 64172032,
+        "private_bytes": 50114560
+      },
+      "metadata_samples": 82,
+      "small_latency": null,
+      "large_latency": null,
+      "makespan_s": null
+    },
+    {
+      "status": "passed",
+      "profile": "baseline",
+      "epoch": 1,
+      "mode": "memory",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 0,
+      "max_active_large": 8,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 8,
+        "invalid": 0,
+        "body_memory": null,
+        "memory": {
+          "rss_bytes": 67665920,
+          "private_bytes": 54235136
+        },
+        "current_python_bytes": 2077977,
+        "peak_python_bytes": 303371982
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": 303371982,
+      "sampled_peak_rss_bytes": 337817600,
+      "sampled_peak_private_bytes": 326844416,
+      "initial_memory": {
+        "rss_bytes": 63479808,
+        "private_bytes": 49201152
+      },
+      "metadata_samples": 85,
+      "small_latency": null,
+      "large_latency": null,
+      "makespan_s": null
+    },
+    {
+      "status": "passed",
+      "profile": "baseline",
+      "epoch": 2,
+      "mode": "memory",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 0,
+      "max_active_large": 8,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 8,
+        "invalid": 0,
+        "body_memory": null,
+        "memory": {
+          "rss_bytes": 67461120,
+          "private_bytes": 54218752
+        },
+        "current_python_bytes": 2053938,
+        "peak_python_bytes": 303197768
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": 303197768,
+      "sampled_peak_rss_bytes": 347697152,
+      "sampled_peak_private_bytes": 334204928,
+      "initial_memory": {
+        "rss_bytes": 63406080,
+        "private_bytes": 49811456
+      },
+      "metadata_samples": 86,
+      "small_latency": null,
+      "large_latency": null,
+      "makespan_s": null
+    },
+    {
+      "status": "passed",
+      "profile": "candidate_unlimited",
+      "epoch": 2,
+      "mode": "memory",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 0,
+      "max_active_large": 8,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 8,
+        "invalid": 0,
+        "body_memory": {
+          "limit_bytes": 0,
+          "reserved_bytes": 0,
+          "peak_reserved_bytes": 0,
+          "waiters": 0,
+          "waits": 0,
+          "timeouts": 0,
+          "reservation_factor": 3
+        },
+        "memory": {
+          "rss_bytes": 67555328,
+          "private_bytes": 54906880
+        },
+        "current_python_bytes": 2079460,
+        "peak_python_bytes": 272622048
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": 272622048,
+      "sampled_peak_rss_bytes": 337690624,
+      "sampled_peak_private_bytes": 324993024,
+      "initial_memory": {
+        "rss_bytes": 63578112,
+        "private_bytes": 49541120
+      },
+      "metadata_samples": 82,
+      "small_latency": null,
+      "large_latency": null,
+      "makespan_s": null
+    },
+    {
+      "status": "passed",
+      "profile": "candidate_budget",
+      "epoch": 2,
+      "mode": "memory",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 268435456,
+      "max_active_large": 2,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 2,
+        "invalid": 0,
+        "body_memory": {
+          "limit_bytes": 268435456,
+          "reserved_bytes": 0,
+          "peak_reserved_bytes": 201326784,
+          "waiters": 0,
+          "waits": 6,
+          "timeouts": 0,
+          "reservation_factor": 3
+        },
+        "memory": {
+          "rss_bytes": 67121152,
+          "private_bytes": 52604928
+        },
+        "current_python_bytes": 1108201,
+        "peak_python_bytes": 70437319
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": 70437319,
+      "sampled_peak_rss_bytes": 135233536,
+      "sampled_peak_private_bytes": 120848384,
+      "initial_memory": {
+        "rss_bytes": 64212992,
+        "private_bytes": 49942528
+      },
+      "metadata_samples": 276,
+      "small_latency": null,
+      "large_latency": null,
+      "makespan_s": null
+    },
+    {
+      "status": "passed",
+      "profile": "baseline",
+      "epoch": 0,
+      "mode": "timing",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 0,
+      "max_active_large": 8,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 8,
+        "invalid": 0,
+        "body_memory": null,
+        "memory": {
+          "rss_bytes": 66539520,
+          "private_bytes": 53116928
+        },
+        "current_python_bytes": null,
+        "peak_python_bytes": null
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": null,
+      "sampled_peak_rss_bytes": 336912384,
+      "sampled_peak_private_bytes": 324534272,
+      "initial_memory": {
+        "rss_bytes": 63647744,
+        "private_bytes": 49205248
+      },
+      "metadata_samples": 115,
+      "small_latency": {
+        "samples": 115,
+        "median_ms": 11.585199999899487,
+        "p95_ms": 39.07869999966351
+      },
+      "large_latency": {
+        "samples": 8,
+        "median_ms": 3369.769849999102,
+        "p95_ms": 3402.724899999157
+      },
+      "makespan_s": 3.4190651000008074
+    },
+    {
+      "status": "passed",
+      "profile": "candidate_unlimited",
+      "epoch": 0,
+      "mode": "timing",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 0,
+      "max_active_large": 8,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 8,
+        "invalid": 0,
+        "body_memory": {
+          "limit_bytes": 0,
+          "reserved_bytes": 0,
+          "peak_reserved_bytes": 0,
+          "waiters": 0,
+          "waits": 0,
+          "timeouts": 0,
+          "reservation_factor": 3
+        },
+        "memory": {
+          "rss_bytes": 67096576,
+          "private_bytes": 53456896
+        },
+        "current_python_bytes": null,
+        "peak_python_bytes": null
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": null,
+      "sampled_peak_rss_bytes": 336695296,
+      "sampled_peak_private_bytes": 323624960,
+      "initial_memory": {
+        "rss_bytes": 63619072,
+        "private_bytes": 49430528
+      },
+      "metadata_samples": 101,
+      "small_latency": {
+        "samples": 101,
+        "median_ms": 10.347200000978773,
+        "p95_ms": 45.25630000171077
+      },
+      "large_latency": {
+        "samples": 8,
+        "median_ms": 3047.5791500002742,
+        "p95_ms": 3048.251199999868
+      },
+      "makespan_s": 3.0629766000001837
+    },
+    {
+      "status": "passed",
+      "profile": "candidate_budget",
+      "epoch": 0,
+      "mode": "timing",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 268435456,
+      "max_active_large": 2,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 2,
+        "invalid": 0,
+        "body_memory": {
+          "limit_bytes": 268435456,
+          "reserved_bytes": 0,
+          "peak_reserved_bytes": 201326784,
+          "waiters": 0,
+          "waits": 6,
+          "timeouts": 0,
+          "reservation_factor": 3
+        },
+        "memory": {
+          "rss_bytes": 66863104,
+          "private_bytes": 53366784
+        },
+        "current_python_bytes": null,
+        "peak_python_bytes": null
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": null,
+      "sampled_peak_rss_bytes": 134471680,
+      "sampled_peak_private_bytes": 121085952,
+      "initial_memory": {
+        "rss_bytes": 63901696,
+        "private_bytes": 49635328
+      },
+      "metadata_samples": 341,
+      "small_latency": {
+        "samples": 341,
+        "median_ms": 7.793500000843778,
+        "p95_ms": 16.016100000342703
+      },
+      "large_latency": {
+        "samples": 8,
+        "median_ms": 4530.027249998966,
+        "p95_ms": 7296.8317000013485
+      },
+      "makespan_s": 7.314146400000027
+    },
+    {
+      "status": "passed",
+      "profile": "candidate_budget",
+      "epoch": 1,
+      "mode": "timing",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 268435456,
+      "max_active_large": 2,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 2,
+        "invalid": 0,
+        "body_memory": {
+          "limit_bytes": 268435456,
+          "reserved_bytes": 0,
+          "peak_reserved_bytes": 201326784,
+          "waiters": 0,
+          "waits": 6,
+          "timeouts": 0,
+          "reservation_factor": 3
+        },
+        "memory": {
+          "rss_bytes": 67571712,
+          "private_bytes": 54480896
+        },
+        "current_python_bytes": null,
+        "peak_python_bytes": null
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": null,
+      "sampled_peak_rss_bytes": 134688768,
+      "sampled_peak_private_bytes": 121724928,
+      "initial_memory": {
+        "rss_bytes": 64417792,
+        "private_bytes": 50511872
+      },
+      "metadata_samples": 346,
+      "small_latency": {
+        "samples": 346,
+        "median_ms": 6.569649999619287,
+        "p95_ms": 16.093800000817282
+      },
+      "large_latency": {
+        "samples": 8,
+        "median_ms": 4560.423600000831,
+        "p95_ms": 6814.424599999256
+      },
+      "makespan_s": 6.834762700000283
+    },
+    {
+      "status": "passed",
+      "profile": "candidate_unlimited",
+      "epoch": 1,
+      "mode": "timing",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 0,
+      "max_active_large": 8,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 8,
+        "invalid": 0,
+        "body_memory": {
+          "limit_bytes": 0,
+          "reserved_bytes": 0,
+          "peak_reserved_bytes": 0,
+          "waiters": 0,
+          "waits": 0,
+          "timeouts": 0,
+          "reservation_factor": 3
+        },
+        "memory": {
+          "rss_bytes": 67207168,
+          "private_bytes": 54079488
+        },
+        "current_python_bytes": null,
+        "peak_python_bytes": null
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": null,
+      "sampled_peak_rss_bytes": 337244160,
+      "sampled_peak_private_bytes": 324374528,
+      "initial_memory": {
+        "rss_bytes": 64139264,
+        "private_bytes": 50032640
+      },
+      "metadata_samples": 93,
+      "small_latency": {
+        "samples": 93,
+        "median_ms": 4.81000000036147,
+        "p95_ms": 35.153900000295835
+      },
+      "large_latency": {
+        "samples": 8,
+        "median_ms": 2643.059699999867,
+        "p95_ms": 2659.2595000001893
+      },
+      "makespan_s": 2.6732699000003777
+    },
+    {
+      "status": "passed",
+      "profile": "baseline",
+      "epoch": 1,
+      "mode": "timing",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 0,
+      "max_active_large": 8,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 8,
+        "invalid": 0,
+        "body_memory": null,
+        "memory": {
+          "rss_bytes": 66424832,
+          "private_bytes": 53334016
+        },
+        "current_python_bytes": null,
+        "peak_python_bytes": null
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": null,
+      "sampled_peak_rss_bytes": 336912384,
+      "sampled_peak_private_bytes": 324108288,
+      "initial_memory": {
+        "rss_bytes": 63778816,
+        "private_bytes": 49717248
+      },
+      "metadata_samples": 118,
+      "small_latency": {
+        "samples": 118,
+        "median_ms": 11.16205000107584,
+        "p95_ms": 31.93960000135121
+      },
+      "large_latency": {
+        "samples": 8,
+        "median_ms": 3200.79264999913,
+        "p95_ms": 3201.9034000004467
+      },
+      "makespan_s": 3.216998699999749
+    },
+    {
+      "status": "passed",
+      "profile": "baseline",
+      "epoch": 2,
+      "mode": "timing",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 0,
+      "max_active_large": 8,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 8,
+        "invalid": 0,
+        "body_memory": null,
+        "memory": {
+          "rss_bytes": 66555904,
+          "private_bytes": 53391360
+        },
+        "current_python_bytes": null,
+        "peak_python_bytes": null
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": null,
+      "sampled_peak_rss_bytes": 337182720,
+      "sampled_peak_private_bytes": 324820992,
+      "initial_memory": {
+        "rss_bytes": 63680512,
+        "private_bytes": 49229824
+      },
+      "metadata_samples": 119,
+      "small_latency": {
+        "samples": 119,
+        "median_ms": 11.220499998671585,
+        "p95_ms": 29.522999999244348
+      },
+      "large_latency": {
+        "samples": 8,
+        "median_ms": 3115.6067000001713,
+        "p95_ms": 3116.2567999999737
+      },
+      "makespan_s": 3.1306647999990673
+    },
+    {
+      "status": "passed",
+      "profile": "candidate_unlimited",
+      "epoch": 2,
+      "mode": "timing",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 0,
+      "max_active_large": 8,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 8,
+        "invalid": 0,
+        "body_memory": {
+          "limit_bytes": 0,
+          "reserved_bytes": 0,
+          "peak_reserved_bytes": 0,
+          "waiters": 0,
+          "waits": 0,
+          "timeouts": 0,
+          "reservation_factor": 3
+        },
+        "memory": {
+          "rss_bytes": 67219456,
+          "private_bytes": 54497280
+        },
+        "current_python_bytes": null,
+        "peak_python_bytes": null
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": null,
+      "sampled_peak_rss_bytes": 336953344,
+      "sampled_peak_private_bytes": 324145152,
+      "initial_memory": {
+        "rss_bytes": 64278528,
+        "private_bytes": 50311168
+      },
+      "metadata_samples": 107,
+      "small_latency": {
+        "samples": 107,
+        "median_ms": 6.052200000340235,
+        "p95_ms": 32.37929999886546
+      },
+      "large_latency": {
+        "samples": 8,
+        "median_ms": 2918.46170000008,
+        "p95_ms": 2919.292599999608
+      },
+      "makespan_s": 2.9339365999985603
+    },
+    {
+      "status": "passed",
+      "profile": "candidate_budget",
+      "epoch": 2,
+      "mode": "timing",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 268435456,
+      "max_active_large": 2,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 2,
+        "invalid": 0,
+        "body_memory": {
+          "limit_bytes": 268435456,
+          "reserved_bytes": 0,
+          "peak_reserved_bytes": 201326784,
+          "waiters": 0,
+          "waits": 6,
+          "timeouts": 0,
+          "reservation_factor": 3
+        },
+        "memory": {
+          "rss_bytes": 66498560,
+          "private_bytes": 52183040
+        },
+        "current_python_bytes": null,
+        "peak_python_bytes": null
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": null,
+      "sampled_peak_rss_bytes": 134524928,
+      "sampled_peak_private_bytes": 120283136,
+      "initial_memory": {
+        "rss_bytes": 64053248,
+        "private_bytes": 49975296
+      },
+      "metadata_samples": 353,
+      "small_latency": {
+        "samples": 353,
+        "median_ms": 4.949699999997392,
+        "p95_ms": 10.832600000867387
+      },
+      "large_latency": {
+        "samples": 8,
+        "median_ms": 3928.001050000603,
+        "p95_ms": 6199.485700000878
+      },
+      "makespan_s": 6.216250099998433
+    }
+  ],
+  "harness_sha256": "f667cc7b6b7e004c60b32c3bdb2135bace903192a2daf2b863640c138d0c5cc7",
+  "finished_at": "2026-11-17T07:45:01.639628+00:00",
+  "sources_unchanged": true
+}

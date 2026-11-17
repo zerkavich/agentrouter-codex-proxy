@@ -1,0 +1,32 @@
+{
+  "checked_at": "2026-11-17T05:38:44.400343+00:00",
+  "tls_probes": [
+    {
+      "offered": [
+        "h2",
+        "http/1.1"
+      ],
+      "host": "agentrouter.org",
+      "port": 443,
+      "negotiated": "http/1.1",
+      "tls_version": "TLSv1.3",
+      "certificate_verified": true,
+      "handshake_ms": 741.073
+    },
+    {
+      "offered": [
+        "http/1.1"
+      ],
+      "host": "agentrouter.org",
+      "port": 443,
+      "negotiated": "http/1.1",
+      "tls_version": "TLSv1.3",
+      "certificate_verified": true,
+      "handshake_ms": 652.907
+    }
+  ],
+  "http_requests": 0,
+  "model_calls": 0,
+  "credentials_used": false,
+  "scope": "TLS frontend capability only; no application-route/performance claim"
+}

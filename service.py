@@ -665,6 +665,14 @@ class IndependentPanel:
                 return self.history.requests(limit=limit, before=before, outcome=parameters.get('outcome', [None])[0]), None
             if kind in ('metrics', 'events', 'reports'):
                 return getattr(self.history, kind)(), None
+            if kind.startswith('attempts/'):
+                identifier = kind[len('attempts/'):]
+                if not identifier.isascii() or not identifier.isdigit() or len(identifier) > 18:
+                    raise ValueError()
+                detail = self.history.attempts(int(identifier))
+                if detail is None:
+                    raise ControlError('history_attempts_unavailable', 404)
+                return detail, None
             if kind.startswith('report/'):
                 identifier = kind[len('report/'):]
                 if not identifier.isdigit() or len(identifier) > 18:

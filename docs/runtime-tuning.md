@@ -1,5 +1,7 @@
 # Runtime settings and measured results
 
+Version 1.10.0 adds [incoming-body assembly, aggregate memory admission and expandable request attempts](incoming-attempts-1.10.0.md). The default 256 MiB budget estimates three times the plain body for requests of at least 1 MiB. Larger parallel calls may wait; small calls bypass admission. Budget `0` keeps maximum large-request parallelism. The budget and its 60-second wait are editable in **Settings → Connection**.
+
 Version 1.9.0 adds [independent management, bounded history and lower-memory payload transforms](resilience-1.9.0.md). Open the supervisor panel on `http://127.0.0.1:8789/`; API calls still use 8788. Thirty browser settings cover history retention, incident capture and watchdog timing as well as existing transport tuning. The default SSE queue is now 256 KiB; existing explicit `.env` or browser values continue to take precedence.
 
 Version 1.8.0 moves routine management to the [browser panel](browser-control-1.8.0.md): overview, temporary profiling/report export, 23 tuning values, pause/resume, graceful restart and compatible package updates. Browser overrides are saved separately from `.env` and apply after a restart. A receive listener now covers Responses quota waits, sends and body reads, replacing upstream-send polling while preserving the prior compression policy.
@@ -22,6 +24,8 @@ Edit the allowlisted tuning values in the browser's **Settings** section, save a
 | --- | ---: | --- |
 | `PROXY_REQUEST_GZIP` | `0` | Opt in to request gzip when the upstream supports it. |
 | `PROXY_REQUEST_GZIP_MIN_BYTES` | `262144` | Evaluate gzip only for large request bodies. |
+| `PROXY_BODY_BUDGET_BYTES` | `268435456` | Aggregate large-body reservation estimate; `0` disables admission. Oversized/unknown requests run alone; this is not an RSS cap. |
+| `PROXY_BODY_BUDGET_WAIT_S` | `60` | Maximum large-request memory wait; exhaustion returns 503 `proxy_memory_busy` with `Retry-After: 2`. |
 | `PROXY_GZIP_WORKERS` | `4` | Dedicated compression threads, separate from asyncio's default executor. |
 | `PROXY_GZIP_MAX_JOBS` | `16` | Maximum submitted running/queued jobs; saturation forwards original bytes. |
 | `PROXY_GZIP_REJECT_TTL_S` | `60` | Skip proxy-added gzip briefly for the same upstream/key/project/organization after HTTP 415. `0` disables this hint. |

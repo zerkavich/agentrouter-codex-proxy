@@ -97,6 +97,28 @@ class IndependentPanelTests(unittest.TestCase):
         self.upstream_thread.join(2)
         self.directory.cleanup()
 
+    def test_retained_attempt_details_are_available_without_the_worker(self):
+        from telemetry import REQUEST_RECORD, note_attempt
+        record = RequestRecord('POST', '/responses')
+        record.status, record.complete = 200, True
+        token = REQUEST_RECORD.set(record)
+        try:
+            note_attempt('upstream', status=503)
+            note_attempt('retry_wait', wait_s=.1)
+            note_attempt('upstream', status=200)
+        finally:
+            REQUEST_RECORD.reset(token)
+        self.panel.history.request(record)
+        deadline = time.monotonic() + 5
+        while self.panel.history.pending.unfinished_tasks and time.monotonic() < deadline:
+            time.sleep(.01)
+        row = self.panel.history.requests()['items'][0]
+        path = '/_control/api/history/attempts/' + str(row['id'])
+        with self.opener.open(self.origin + path, timeout=3) as response:
+            detail = json.loads(response.read())
+        self.assertEqual([event[0] for event in detail['events']], ['upstream', 'retry_wait', 'upstream'])
+        self.assertNotIn(path, self.calls)
+
     def request(self, path, data=None, headers=None):
         headers = dict(headers or {})
         if data is not None:

@@ -21,7 +21,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from control import ControlRuntime, attach_control
-from telemetry import HistoryStore, RequestRecord, RuntimeTimings, note_stream_error, process_memory
+from telemetry import HistoryStore, RequestRecord, RuntimeTimings, note_stream_error, process_memory, note_attempt
 
 
 def record(index=0):
@@ -291,6 +291,9 @@ class RequestHistoryTests(unittest.IsolatedAsyncioTestCase):
         @self.app.post('/v1/responses')
         async def response(request: Request):
             await request.body()
+            note_attempt('upstream', status=503, duration_s=.02)
+            note_attempt('retry_wait', wait_s=.1)
+            note_attempt('upstream', status=200, duration_s=.01)
             with self.timings.measure('rate_limit_gate'):
                 await asyncio.sleep(.01)
             return JSONResponse({'output': 'SYNTHETIC_RESPONSE_CANARY'})
@@ -334,6 +337,12 @@ class RequestHistoryTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(row['quota_ms'], 0)
         self.assertEqual(self.timings.stages['rate_limit_gate'].count, 0)
         self.assertNotIn('SYNTHETIC', response.text)
+        detail = await self.client.get('/_control/api/history/attempts/' + str(row['id']))
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual([event[0] for event in detail.json()['events']], ['upstream', 'retry_wait', 'upstream'])
+        self.assertNotIn('SYNTHETIC', detail.text)
+        denied = await self.client.get('/_control/api/history/attempts/' + str(row['id']), headers={'origin': 'https://example.invalid'})
+        self.assertEqual(denied.status_code, 403)
         await self.runtime.close()
         for path in self.root.glob('logs/request-history.sqlite3*'):
             self.assertNotIn(b'SYNTHETIC', path.read_bytes())
