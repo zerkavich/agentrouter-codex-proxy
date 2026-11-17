@@ -1,22 +1,22 @@
 {
   "status": "passed",
-  "started_at": "2026-11-17T07:42:46.355137+00:00",
+  "started_at": "2026-11-17T08:24:34.156835+00:00",
   "baseline_commit": "bbad7506f5cda85df5fad5781c508bdb78005854",
   "runtime_sha256": {
     "baseline": {
       "proxy.py": "e0991fe6429a83c02fa94f003ca82d40c124b1fd8ae3cf0f8c6b5523d7da117e",
       "telemetry.py": "9c907e17230dff5a2829dce988b7cfec939749b94a7253eb9e06ac0cd1ffae3b",
       "control.py": "15476ec89757d556739e31b559563e3148ed165be40feb48e4940ebbd83b14dc",
-      "doctor.py": "ab503763e7aa3bf2af743b91c3c3d15ec1818a5619525abd455bd418286d714b",
       "panel_updates.py": "1570038b8641067f111c3c61cc51495ea240e3f8d62e3f9ddcbc1a45fbbfdad7",
+      "doctor.py": "ab503763e7aa3bf2af743b91c3c3d15ec1818a5619525abd455bd418286d714b",
       "update_guard.py": "7c00f87e2c50b8d9d95af096ced6d731d332f417e4578911bd83c12260602151"
     },
     "candidate": {
-      "proxy.py": "1f95883a069c62441c2fcf99617211925a59169df1dd0b1053ee400e40f8c4bb",
+      "proxy.py": "5d9f65ac53ecdd20fe3412b51c48f7dad269386ab61de86168ac30e3439ca9e6",
       "telemetry.py": "4c6069eec434b2d8add69a67f15a99295d98b5c230936823f3338bdc829f7976",
       "control.py": "a34646c3ac7a883fde9d78979d262944a62d652776ea05705d0cc1eb907cfb92",
-      "doctor.py": "2facc0b3fd38eb5e2c32a728cd9bd9ad068962f019f7081113a3c728ea9e81e8",
       "panel_updates.py": "94a29884c2ca7e49a10866d792cb38e58b48207fa1eb82ad92a9cdd1ccf18562",
+      "doctor.py": "2facc0b3fd38eb5e2c32a728cd9bd9ad068962f019f7081113a3c728ea9e81e8",
       "update_guard.py": "5d3b3fb3ed20e4d6db70fb6d4f2b3bdf5cd3f2524eacb14dc2c8aa7ba30c869f"
     }
   },
@@ -689,7 +689,7 @@
           "size_mib": 1,
           "known_length": true,
           "sample": 0,
-          "assembly_ms": 0.8202999997592997,
+          "assembly_ms": 0.5854000010003801,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -697,7 +697,7 @@
           "size_mib": 1,
           "known_length": true,
           "sample": 1,
-          "assembly_ms": 1.0564999993221136,
+          "assembly_ms": 0.6978000001254259,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -705,7 +705,7 @@
           "size_mib": 1,
           "known_length": true,
           "sample": 2,
-          "assembly_ms": 1.0385999994468875,
+          "assembly_ms": 0.4574000013235491,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -713,7 +713,7 @@
           "size_mib": 1,
           "known_length": true,
           "sample": 3,
-          "assembly_ms": 0.91219999922032,
+          "assembly_ms": 0.46180000026652124,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -721,7 +721,7 @@
           "size_mib": 1,
           "known_length": true,
           "sample": 4,
-          "assembly_ms": 0.8275000000139698,
+          "assembly_ms": 0.3940999995393213,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -729,7 +729,7 @@
           "size_mib": 1,
           "known_length": false,
           "sample": 0,
-          "assembly_ms": 0.8457000003545545,
+          "assembly_ms": 0.3944000000046799,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -737,7 +737,7 @@
           "size_mib": 1,
           "known_length": false,
           "sample": 1,
-          "assembly_ms": 1.0407000008854084,
+          "assembly_ms": 0.3935000004275935,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -745,7 +745,7 @@
           "size_mib": 1,
           "known_length": false,
           "sample": 2,
-          "assembly_ms": 0.8440999990853015,
+          "assembly_ms": 0.40169999920181,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -753,7 +753,7 @@
           "size_mib": 1,
           "known_length": false,
           "sample": 3,
-          "assembly_ms": 0.8374999997613486,
+          "assembly_ms": 0.4027999984828057,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -761,7 +761,7 @@
           "size_mib": 1,
           "known_length": false,
           "sample": 4,
-          "assembly_ms": 0.8596999996370869,
+          "assembly_ms": 0.40970000009110663,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -769,7 +769,7 @@
           "size_mib": 4,
           "known_length": true,
           "sample": 0,
-          "assembly_ms": 3.627099998993799,
+          "assembly_ms": 3.041599999050959,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -777,7 +777,7 @@
           "size_mib": 4,
           "known_length": true,
           "sample": 1,
-          "assembly_ms": 3.7391999994724756,
+          "assembly_ms": 3.4176000008301344,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -785,7 +785,7 @@
           "size_mib": 4,
           "known_length": true,
           "sample": 2,
-          "assembly_ms": 3.435499998886371,
+          "assembly_ms": 3.199000000677188,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -793,63 +793,63 @@
           "size_mib": 4,
           "known_length": true,
           "sample": 3,
+          "assembly_ms": 2.870600001187995,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": true,
+          "sample": 4,
+          "assembly_ms": 3.041900001335307,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 0,
+          "assembly_ms": 3.169999999954598,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 1,
+          "assembly_ms": 3.2721999996283557,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 2,
+          "assembly_ms": 3.4462000003259163,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 3,
+          "assembly_ms": 3.437000001213164,
+          "current_python_bytes": null,
+          "peak_python_bytes": null
+        },
+        {
+          "size_mib": 4,
+          "known_length": false,
+          "sample": 4,
           "assembly_ms": 3.426200000831159,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
         {
-          "size_mib": 4,
-          "known_length": true,
-          "sample": 4,
-          "assembly_ms": 3.4469000001990935,
-          "current_python_bytes": null,
-          "peak_python_bytes": null
-        },
-        {
-          "size_mib": 4,
-          "known_length": false,
-          "sample": 0,
-          "assembly_ms": 5.521799999769428,
-          "current_python_bytes": null,
-          "peak_python_bytes": null
-        },
-        {
-          "size_mib": 4,
-          "known_length": false,
-          "sample": 1,
-          "assembly_ms": 3.0537000002368586,
-          "current_python_bytes": null,
-          "peak_python_bytes": null
-        },
-        {
-          "size_mib": 4,
-          "known_length": false,
-          "sample": 2,
-          "assembly_ms": 3.3612999995966675,
-          "current_python_bytes": null,
-          "peak_python_bytes": null
-        },
-        {
-          "size_mib": 4,
-          "known_length": false,
-          "sample": 3,
-          "assembly_ms": 3.3292000007349998,
-          "current_python_bytes": null,
-          "peak_python_bytes": null
-        },
-        {
-          "size_mib": 4,
-          "known_length": false,
-          "sample": 4,
-          "assembly_ms": 3.4143999982916284,
-          "current_python_bytes": null,
-          "peak_python_bytes": null
-        },
-        {
           "size_mib": 16,
           "known_length": true,
           "sample": 0,
-          "assembly_ms": 14.905700001691002,
+          "assembly_ms": 14.29209999878367,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -857,7 +857,7 @@
           "size_mib": 16,
           "known_length": true,
           "sample": 1,
-          "assembly_ms": 14.215799999874434,
+          "assembly_ms": 14.731299999766634,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -865,7 +865,7 @@
           "size_mib": 16,
           "known_length": true,
           "sample": 2,
-          "assembly_ms": 14.300199998615426,
+          "assembly_ms": 14.329899999211193,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -873,7 +873,7 @@
           "size_mib": 16,
           "known_length": true,
           "sample": 3,
-          "assembly_ms": 14.375400000062655,
+          "assembly_ms": 14.267399999880581,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -881,7 +881,7 @@
           "size_mib": 16,
           "known_length": true,
           "sample": 4,
-          "assembly_ms": 14.05960000010964,
+          "assembly_ms": 14.28940000005241,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -889,7 +889,7 @@
           "size_mib": 16,
           "known_length": false,
           "sample": 0,
-          "assembly_ms": 14.527000001180568,
+          "assembly_ms": 14.406099999177968,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -897,7 +897,7 @@
           "size_mib": 16,
           "known_length": false,
           "sample": 1,
-          "assembly_ms": 18.539700000474113,
+          "assembly_ms": 14.4443000008323,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -905,7 +905,7 @@
           "size_mib": 16,
           "known_length": false,
           "sample": 2,
-          "assembly_ms": 15.40709999972023,
+          "assembly_ms": 14.24579999911657,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -913,7 +913,7 @@
           "size_mib": 16,
           "known_length": false,
           "sample": 3,
-          "assembly_ms": 14.41789999989851,
+          "assembly_ms": 14.452999999775784,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -921,7 +921,7 @@
           "size_mib": 16,
           "known_length": false,
           "sample": 4,
-          "assembly_ms": 14.731100000062725,
+          "assembly_ms": 14.063299999179435,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -929,7 +929,7 @@
           "size_mib": 32,
           "known_length": true,
           "sample": 0,
-          "assembly_ms": 34.94419999879028,
+          "assembly_ms": 30.15380000033474,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -937,7 +937,7 @@
           "size_mib": 32,
           "known_length": true,
           "sample": 1,
-          "assembly_ms": 29.444499999954132,
+          "assembly_ms": 29.137199999240693,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -945,7 +945,7 @@
           "size_mib": 32,
           "known_length": true,
           "sample": 2,
-          "assembly_ms": 29.274999998960993,
+          "assembly_ms": 29.484900000170455,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -953,7 +953,7 @@
           "size_mib": 32,
           "known_length": true,
           "sample": 3,
-          "assembly_ms": 30.186399999365676,
+          "assembly_ms": 29.615999999805354,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -961,7 +961,7 @@
           "size_mib": 32,
           "known_length": true,
           "sample": 4,
-          "assembly_ms": 29.840999999578344,
+          "assembly_ms": 29.37489999931131,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -969,7 +969,7 @@
           "size_mib": 32,
           "known_length": false,
           "sample": 0,
-          "assembly_ms": 27.46140000090236,
+          "assembly_ms": 24.682799999936833,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -977,7 +977,7 @@
           "size_mib": 32,
           "known_length": false,
           "sample": 1,
-          "assembly_ms": 29.611500000100932,
+          "assembly_ms": 29.272499999933643,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -985,7 +985,7 @@
           "size_mib": 32,
           "known_length": false,
           "sample": 2,
-          "assembly_ms": 29.495499999029562,
+          "assembly_ms": 33.93839999989723,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -993,7 +993,7 @@
           "size_mib": 32,
           "known_length": false,
           "sample": 3,
-          "assembly_ms": 29.645099999470403,
+          "assembly_ms": 31.769299999723444,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1001,7 +1001,7 @@
           "size_mib": 32,
           "known_length": false,
           "sample": 4,
-          "assembly_ms": 31.694499999503023,
+          "assembly_ms": 29.894100000092294,
           "current_python_bytes": null,
           "peak_python_bytes": null
         }
@@ -1017,7 +1017,7 @@
           "size_mib": 1,
           "known_length": true,
           "sample": 0,
-          "assembly_ms": 0.4515999989962438,
+          "assembly_ms": 0.4633999997167848,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1025,7 +1025,7 @@
           "size_mib": 1,
           "known_length": true,
           "sample": 1,
-          "assembly_ms": 0.41339999916090164,
+          "assembly_ms": 0.3865999988192925,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1033,7 +1033,7 @@
           "size_mib": 1,
           "known_length": true,
           "sample": 2,
-          "assembly_ms": 0.4233999989082804,
+          "assembly_ms": 0.3744999994523823,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1041,7 +1041,7 @@
           "size_mib": 1,
           "known_length": true,
           "sample": 3,
-          "assembly_ms": 0.4729999982373556,
+          "assembly_ms": 0.39369999831251334,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1049,7 +1049,7 @@
           "size_mib": 1,
           "known_length": true,
           "sample": 4,
-          "assembly_ms": 0.7962999989103992,
+          "assembly_ms": 0.4030999989481643,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1057,7 +1057,7 @@
           "size_mib": 1,
           "known_length": false,
           "sample": 0,
-          "assembly_ms": 0.5805000000691507,
+          "assembly_ms": 0.830699998914497,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1065,7 +1065,7 @@
           "size_mib": 1,
           "known_length": false,
           "sample": 1,
-          "assembly_ms": 0.48470000001543667,
+          "assembly_ms": 0.6210999999893829,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1073,7 +1073,7 @@
           "size_mib": 1,
           "known_length": false,
           "sample": 2,
-          "assembly_ms": 0.4329999992478406,
+          "assembly_ms": 0.5075000008218922,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1081,7 +1081,7 @@
           "size_mib": 1,
           "known_length": false,
           "sample": 3,
-          "assembly_ms": 0.4716000003099907,
+          "assembly_ms": 0.4533000010269461,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1089,7 +1089,7 @@
           "size_mib": 1,
           "known_length": false,
           "sample": 4,
-          "assembly_ms": 0.4540999998425832,
+          "assembly_ms": 0.45139999929233454,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1097,7 +1097,7 @@
           "size_mib": 4,
           "known_length": true,
           "sample": 0,
-          "assembly_ms": 1.7487000004621223,
+          "assembly_ms": 1.5493999999307562,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1105,7 +1105,7 @@
           "size_mib": 4,
           "known_length": true,
           "sample": 1,
-          "assembly_ms": 1.7556000002514338,
+          "assembly_ms": 1.6317999998136656,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1113,7 +1113,7 @@
           "size_mib": 4,
           "known_length": true,
           "sample": 2,
-          "assembly_ms": 1.5636999996786471,
+          "assembly_ms": 1.6905000011320226,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1121,7 +1121,7 @@
           "size_mib": 4,
           "known_length": true,
           "sample": 3,
-          "assembly_ms": 1.5894999996817205,
+          "assembly_ms": 1.4508000003843335,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1129,7 +1129,7 @@
           "size_mib": 4,
           "known_length": true,
           "sample": 4,
-          "assembly_ms": 1.81700000030105,
+          "assembly_ms": 1.583799999934854,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1137,7 +1137,7 @@
           "size_mib": 4,
           "known_length": false,
           "sample": 0,
-          "assembly_ms": 2.1491999996214872,
+          "assembly_ms": 2.4895999995351303,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1145,7 +1145,7 @@
           "size_mib": 4,
           "known_length": false,
           "sample": 1,
-          "assembly_ms": 2.1974999999656575,
+          "assembly_ms": 2.5312999987363582,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1153,7 +1153,7 @@
           "size_mib": 4,
           "known_length": false,
           "sample": 2,
-          "assembly_ms": 2.6739999993878882,
+          "assembly_ms": 2.682100001038634,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1161,7 +1161,7 @@
           "size_mib": 4,
           "known_length": false,
           "sample": 3,
-          "assembly_ms": 2.4193000008381205,
+          "assembly_ms": 2.6216999995085644,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1169,7 +1169,7 @@
           "size_mib": 4,
           "known_length": false,
           "sample": 4,
-          "assembly_ms": 2.6431000005686656,
+          "assembly_ms": 2.319000001079985,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1177,7 +1177,7 @@
           "size_mib": 16,
           "known_length": true,
           "sample": 0,
-          "assembly_ms": 7.253200001287041,
+          "assembly_ms": 5.798799998956383,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1185,7 +1185,7 @@
           "size_mib": 16,
           "known_length": true,
           "sample": 1,
-          "assembly_ms": 7.085700000970974,
+          "assembly_ms": 6.1064000001351815,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1193,7 +1193,7 @@
           "size_mib": 16,
           "known_length": true,
           "sample": 2,
-          "assembly_ms": 7.070999999996275,
+          "assembly_ms": 6.29069999922649,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1201,7 +1201,7 @@
           "size_mib": 16,
           "known_length": true,
           "sample": 3,
-          "assembly_ms": 7.293799999388284,
+          "assembly_ms": 7.061799999064533,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1209,7 +1209,7 @@
           "size_mib": 16,
           "known_length": true,
           "sample": 4,
-          "assembly_ms": 6.9614999993063975,
+          "assembly_ms": 7.124899999325862,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1217,7 +1217,7 @@
           "size_mib": 16,
           "known_length": false,
           "sample": 0,
-          "assembly_ms": 13.494299999365467,
+          "assembly_ms": 11.76349999877857,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1225,7 +1225,7 @@
           "size_mib": 16,
           "known_length": false,
           "sample": 1,
-          "assembly_ms": 12.052400001266506,
+          "assembly_ms": 11.731200000212993,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1233,7 +1233,7 @@
           "size_mib": 16,
           "known_length": false,
           "sample": 2,
-          "assembly_ms": 11.868800000229385,
+          "assembly_ms": 11.84579999971902,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1241,7 +1241,7 @@
           "size_mib": 16,
           "known_length": false,
           "sample": 3,
-          "assembly_ms": 12.071999999534455,
+          "assembly_ms": 12.074700000084704,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1249,7 +1249,7 @@
           "size_mib": 16,
           "known_length": false,
           "sample": 4,
-          "assembly_ms": 12.99500000095577,
+          "assembly_ms": 11.847899999338551,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1257,7 +1257,7 @@
           "size_mib": 32,
           "known_length": true,
           "sample": 0,
-          "assembly_ms": 14.31349999984377,
+          "assembly_ms": 14.39360000040324,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1265,7 +1265,7 @@
           "size_mib": 32,
           "known_length": true,
           "sample": 1,
-          "assembly_ms": 14.324899999337504,
+          "assembly_ms": 14.334000001326785,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1273,7 +1273,7 @@
           "size_mib": 32,
           "known_length": true,
           "sample": 2,
-          "assembly_ms": 15.238799998769537,
+          "assembly_ms": 14.227600000594975,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1281,7 +1281,7 @@
           "size_mib": 32,
           "known_length": true,
           "sample": 3,
-          "assembly_ms": 15.46760000019276,
+          "assembly_ms": 14.227600000594975,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1289,7 +1289,7 @@
           "size_mib": 32,
           "known_length": true,
           "sample": 4,
-          "assembly_ms": 14.390399999683723,
+          "assembly_ms": 14.198300001226016,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1297,7 +1297,7 @@
           "size_mib": 32,
           "known_length": false,
           "sample": 0,
-          "assembly_ms": 33.84430000005523,
+          "assembly_ms": 34.3486000001576,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1305,7 +1305,7 @@
           "size_mib": 32,
           "known_length": false,
           "sample": 1,
-          "assembly_ms": 35.84869999940565,
+          "assembly_ms": 33.874099999593454,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1313,7 +1313,7 @@
           "size_mib": 32,
           "known_length": false,
           "sample": 2,
-          "assembly_ms": 31.912399999782792,
+          "assembly_ms": 34.24049999921408,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1321,7 +1321,7 @@
           "size_mib": 32,
           "known_length": false,
           "sample": 3,
-          "assembly_ms": 35.313500000484055,
+          "assembly_ms": 33.685300000797724,
           "current_python_bytes": null,
           "peak_python_bytes": null
         },
@@ -1329,7 +1329,7 @@
           "size_mib": 32,
           "known_length": false,
           "sample": 4,
-          "assembly_ms": 35.23909999967145,
+          "assembly_ms": 35.62350000174774,
           "current_python_bytes": null,
           "peak_python_bytes": null
         }
@@ -1355,65 +1355,20 @@
         "invalid": 0,
         "body_memory": null,
         "memory": {
-          "rss_bytes": 67252224,
-          "private_bytes": 54272000
+          "rss_bytes": 67547136,
+          "private_bytes": 54464512
         },
-        "current_python_bytes": 2069890,
-        "peak_python_bytes": 303253302
+        "current_python_bytes": 2127096,
+        "peak_python_bytes": 303194250
       },
       "provider_calls": 0,
       "body_hash_checked": true,
-      "peak_python_bytes": 303253302,
-      "sampled_peak_rss_bytes": 342384640,
-      "sampled_peak_private_bytes": 334843904,
+      "peak_python_bytes": 303194250,
+      "sampled_peak_rss_bytes": 337580032,
+      "sampled_peak_private_bytes": 325824512,
       "initial_memory": {
-        "rss_bytes": 63303680,
-        "private_bytes": 49393664
-      },
-      "metadata_samples": 84,
-      "small_latency": null,
-      "large_latency": null,
-      "makespan_s": null
-    },
-    {
-      "status": "passed",
-      "profile": "candidate_unlimited",
-      "epoch": 0,
-      "mode": "memory",
-      "size_bytes": 33554464,
-      "parallel": 8,
-      "hold_s": 1.0,
-      "budget_bytes": 0,
-      "max_active_large": 8,
-      "final": {
-        "uploaded": 8,
-        "active_large": 0,
-        "max_active_large": 8,
-        "invalid": 0,
-        "body_memory": {
-          "limit_bytes": 0,
-          "reserved_bytes": 0,
-          "peak_reserved_bytes": 0,
-          "waiters": 0,
-          "waits": 0,
-          "timeouts": 0,
-          "reservation_factor": 3
-        },
-        "memory": {
-          "rss_bytes": 66961408,
-          "private_bytes": 53899264
-        },
-        "current_python_bytes": 2049626,
-        "peak_python_bytes": 272624475
-      },
-      "provider_calls": 0,
-      "body_hash_checked": true,
-      "peak_python_bytes": 272624475,
-      "sampled_peak_rss_bytes": 337190912,
-      "sampled_peak_private_bytes": 324378624,
-      "initial_memory": {
-        "rss_bytes": 63193088,
-        "private_bytes": 49537024
+        "rss_bytes": 63270912,
+        "private_bytes": 49311744
       },
       "metadata_samples": 81,
       "small_latency": null,
@@ -1422,6 +1377,51 @@
     },
     {
       "status": "passed",
+      "profile": "candidate_unlimited",
+      "epoch": 0,
+      "mode": "memory",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 0,
+      "max_active_large": 8,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 8,
+        "invalid": 0,
+        "body_memory": {
+          "limit_bytes": 0,
+          "reserved_bytes": 0,
+          "peak_reserved_bytes": 0,
+          "waiters": 0,
+          "waits": 0,
+          "timeouts": 0,
+          "reservation_factor": 3
+        },
+        "memory": {
+          "rss_bytes": 67051520,
+          "private_bytes": 53772288
+        },
+        "current_python_bytes": 2062558,
+        "peak_python_bytes": 272690236
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": 272690236,
+      "sampled_peak_rss_bytes": 337227776,
+      "sampled_peak_private_bytes": 324435968,
+      "initial_memory": {
+        "rss_bytes": 63459328,
+        "private_bytes": 49512448
+      },
+      "metadata_samples": 82,
+      "small_latency": null,
+      "large_latency": null,
+      "makespan_s": null
+    },
+    {
+      "status": "passed",
       "profile": "candidate_budget",
       "epoch": 0,
       "mode": "memory",
@@ -1445,22 +1445,22 @@
           "reservation_factor": 3
         },
         "memory": {
-          "rss_bytes": 67137536,
-          "private_bytes": 53415936
+          "rss_bytes": 66953216,
+          "private_bytes": 52469760
         },
-        "current_python_bytes": 1175236,
-        "peak_python_bytes": 70506590
+        "current_python_bytes": 1115836,
+        "peak_python_bytes": 70515622
       },
       "provider_calls": 0,
       "body_hash_checked": true,
-      "peak_python_bytes": 70506590,
-      "sampled_peak_rss_bytes": 134897664,
-      "sampled_peak_private_bytes": 120709120,
+      "peak_python_bytes": 70515622,
+      "sampled_peak_rss_bytes": 134619136,
+      "sampled_peak_private_bytes": 120287232,
       "initial_memory": {
-        "rss_bytes": 63860736,
-        "private_bytes": 49848320
+        "rss_bytes": 63381504,
+        "private_bytes": 48971776
       },
-      "metadata_samples": 277,
+      "metadata_samples": 281,
       "small_latency": null,
       "large_latency": null,
       "makespan_s": null
@@ -1490,22 +1490,22 @@
           "reservation_factor": 3
         },
         "memory": {
-          "rss_bytes": 67018752,
-          "private_bytes": 53649408
+          "rss_bytes": 67162112,
+          "private_bytes": 53518336
         },
-        "current_python_bytes": 1151384,
-        "peak_python_bytes": 70507910
+        "current_python_bytes": 1113943,
+        "peak_python_bytes": 70388787
       },
       "provider_calls": 0,
       "body_hash_checked": true,
-      "peak_python_bytes": 70507910,
-      "sampled_peak_rss_bytes": 134983680,
-      "sampled_peak_private_bytes": 120897536,
+      "peak_python_bytes": 70388787,
+      "sampled_peak_rss_bytes": 135335936,
+      "sampled_peak_private_bytes": 121794560,
       "initial_memory": {
-        "rss_bytes": 63860736,
-        "private_bytes": 49987584
+        "rss_bytes": 64684032,
+        "private_bytes": 50491392
       },
-      "metadata_samples": 275,
+      "metadata_samples": 280,
       "small_latency": null,
       "large_latency": null,
       "makespan_s": null
@@ -1535,20 +1535,20 @@
           "reservation_factor": 3
         },
         "memory": {
-          "rss_bytes": 67854336,
-          "private_bytes": 54788096
+          "rss_bytes": 67325952,
+          "private_bytes": 54190080
         },
-        "current_python_bytes": 2082935,
-        "peak_python_bytes": 272684072
+        "current_python_bytes": 2077305,
+        "peak_python_bytes": 272616756
       },
       "provider_calls": 0,
       "body_hash_checked": true,
-      "peak_python_bytes": 272684072,
-      "sampled_peak_rss_bytes": 337997824,
-      "sampled_peak_private_bytes": 325169152,
+      "peak_python_bytes": 272616756,
+      "sampled_peak_rss_bytes": 337612800,
+      "sampled_peak_private_bytes": 324861952,
       "initial_memory": {
-        "rss_bytes": 64172032,
-        "private_bytes": 50114560
+        "rss_bytes": 63881216,
+        "private_bytes": 49844224
       },
       "metadata_samples": 82,
       "small_latency": null,
@@ -1572,20 +1572,57 @@
         "invalid": 0,
         "body_memory": null,
         "memory": {
-          "rss_bytes": 67665920,
-          "private_bytes": 54235136
+          "rss_bytes": 67411968,
+          "private_bytes": 54407168
         },
-        "current_python_bytes": 2077977,
-        "peak_python_bytes": 303371982
+        "current_python_bytes": 2135418,
+        "peak_python_bytes": 303321263
       },
       "provider_calls": 0,
       "body_hash_checked": true,
-      "peak_python_bytes": 303371982,
-      "sampled_peak_rss_bytes": 337817600,
-      "sampled_peak_private_bytes": 326844416,
+      "peak_python_bytes": 303321263,
+      "sampled_peak_rss_bytes": 337752064,
+      "sampled_peak_private_bytes": 326909952,
       "initial_memory": {
-        "rss_bytes": 63479808,
-        "private_bytes": 49201152
+        "rss_bytes": 63471616,
+        "private_bytes": 49483776
+      },
+      "metadata_samples": 83,
+      "small_latency": null,
+      "large_latency": null,
+      "makespan_s": null
+    },
+    {
+      "status": "passed",
+      "profile": "baseline",
+      "epoch": 2,
+      "mode": "memory",
+      "size_bytes": 33554464,
+      "parallel": 8,
+      "hold_s": 1.0,
+      "budget_bytes": 0,
+      "max_active_large": 8,
+      "final": {
+        "uploaded": 8,
+        "active_large": 0,
+        "max_active_large": 8,
+        "invalid": 0,
+        "body_memory": null,
+        "memory": {
+          "rss_bytes": 67039232,
+          "private_bytes": 54104064
+        },
+        "current_python_bytes": 2083962,
+        "peak_python_bytes": 303203262
+      },
+      "provider_calls": 0,
+      "body_hash_checked": true,
+      "peak_python_bytes": 303203262,
+      "sampled_peak_rss_bytes": 347217920,
+      "sampled_peak_private_bytes": 333967360,
+      "initial_memory": {
+        "rss_bytes": 63414272,
+        "private_bytes": 49631232
       },
       "metadata_samples": 85,
       "small_latency": null,
@@ -1594,43 +1631,6 @@
     },
     {
       "status": "passed",
-      "profile": "baseline",
-      "epoch": 2,
-      "mode": "memory",
-      "size_bytes": 33554464,
-      "parallel": 8,
-      "hold_s": 1.0,
-      "budget_bytes": 0,
-      "max_active_large": 8,
-      "final": {
-        "uploaded": 8,
-        "active_large": 0,
-        "max_active_large": 8,
-        "invalid": 0,
-        "body_memory": null,
-        "memory": {
-          "rss_bytes": 67461120,
-          "private_bytes": 54218752
-        },
-        "current_python_bytes": 2053938,
-        "peak_python_bytes": 303197768
-      },
-      "provider_calls": 0,
-      "body_hash_checked": true,
-      "peak_python_bytes": 303197768,
-      "sampled_peak_rss_bytes": 347697152,
-      "sampled_peak_private_bytes": 334204928,
-      "initial_memory": {
-        "rss_bytes": 63406080,
-        "private_bytes": 49811456
-      },
-      "metadata_samples": 86,
-      "small_latency": null,
-      "large_latency": null,
-      "makespan_s": null
-    },
-    {
-      "status": "passed",
       "profile": "candidate_unlimited",
       "epoch": 2,
       "mode": "memory",
@@ -1654,22 +1654,22 @@
           "reservation_factor": 3
         },
         "memory": {
-          "rss_bytes": 67555328,
-          "private_bytes": 54906880
+          "rss_bytes": 68169728,
+          "private_bytes": 54779904
         },
-        "current_python_bytes": 2079460,
-        "peak_python_bytes": 272622048
+        "current_python_bytes": 2099689,
+        "peak_python_bytes": 272675058
       },
       "provider_calls": 0,
       "body_hash_checked": true,
-      "peak_python_bytes": 272622048,
-      "sampled_peak_rss_bytes": 337690624,
-      "sampled_peak_private_bytes": 324993024,
+      "peak_python_bytes": 272675058,
+      "sampled_peak_rss_bytes": 337711104,
+      "sampled_peak_private_bytes": 324894720,
       "initial_memory": {
-        "rss_bytes": 63578112,
-        "private_bytes": 49541120
+        "rss_bytes": 63651840,
+        "private_bytes": 49569792
       },
-      "metadata_samples": 82,
+      "metadata_samples": 80,
       "small_latency": null,
       "large_latency": null,
       "makespan_s": null
@@ -1699,22 +1699,22 @@
           "reservation_factor": 3
         },
         "memory": {
-          "rss_bytes": 67121152,
-          "private_bytes": 52604928
+          "rss_bytes": 66957312,
+          "private_bytes": 53497856
         },
-        "current_python_bytes": 1108201,
-        "peak_python_bytes": 70437319
+        "current_python_bytes": 1136394,
+        "peak_python_bytes": 70448013
       },
       "provider_calls": 0,
       "body_hash_checked": true,
-      "peak_python_bytes": 70437319,
-      "sampled_peak_rss_bytes": 135233536,
+      "peak_python_bytes": 70448013,
+      "sampled_peak_rss_bytes": 135208960,
       "sampled_peak_private_bytes": 120848384,
       "initial_memory": {
-        "rss_bytes": 64212992,
-        "private_bytes": 49942528
+        "rss_bytes": 64217088,
+        "private_bytes": 49754112
       },
-      "metadata_samples": 276,
+      "metadata_samples": 281,
       "small_latency": null,
       "large_latency": null,
       "makespan_s": null
@@ -1736,8 +1736,8 @@
         "invalid": 0,
         "body_memory": null,
         "memory": {
-          "rss_bytes": 66539520,
-          "private_bytes": 53116928
+          "rss_bytes": 66043904,
+          "private_bytes": 53207040
         },
         "current_python_bytes": null,
         "peak_python_bytes": null
@@ -1745,24 +1745,24 @@
       "provider_calls": 0,
       "body_hash_checked": true,
       "peak_python_bytes": null,
-      "sampled_peak_rss_bytes": 336912384,
-      "sampled_peak_private_bytes": 324534272,
+      "sampled_peak_rss_bytes": 342691840,
+      "sampled_peak_private_bytes": 334950400,
       "initial_memory": {
-        "rss_bytes": 63647744,
-        "private_bytes": 49205248
+        "rss_bytes": 63332352,
+        "private_bytes": 49528832
       },
-      "metadata_samples": 115,
+      "metadata_samples": 118,
       "small_latency": {
-        "samples": 115,
-        "median_ms": 11.585199999899487,
-        "p95_ms": 39.07869999966351
+        "samples": 118,
+        "median_ms": 9.884050000437128,
+        "p95_ms": 27.9644999991433
       },
       "large_latency": {
         "samples": 8,
-        "median_ms": 3369.769849999102,
-        "p95_ms": 3402.724899999157
+        "median_ms": 2884.85854999999,
+        "p95_ms": 2886.0294000005524
       },
-      "makespan_s": 3.4190651000008074
+      "makespan_s": 2.901128700001209
     },
     {
       "status": "passed",
@@ -1789,8 +1789,8 @@
           "reservation_factor": 3
         },
         "memory": {
-          "rss_bytes": 67096576,
-          "private_bytes": 53456896
+          "rss_bytes": 66220032,
+          "private_bytes": 52928512
         },
         "current_python_bytes": null,
         "peak_python_bytes": null
@@ -1798,24 +1798,24 @@
       "provider_calls": 0,
       "body_hash_checked": true,
       "peak_python_bytes": null,
-      "sampled_peak_rss_bytes": 336695296,
-      "sampled_peak_private_bytes": 323624960,
+      "sampled_peak_rss_bytes": 336355328,
+      "sampled_peak_private_bytes": 323485696,
       "initial_memory": {
-        "rss_bytes": 63619072,
-        "private_bytes": 49430528
+        "rss_bytes": 63778816,
+        "private_bytes": 49766400
       },
-      "metadata_samples": 101,
+      "metadata_samples": 119,
       "small_latency": {
-        "samples": 101,
-        "median_ms": 10.347200000978773,
-        "p95_ms": 45.25630000171077
+        "samples": 119,
+        "median_ms": 9.905799999614828,
+        "p95_ms": 27.813600001536543
       },
       "large_latency": {
         "samples": 8,
-        "median_ms": 3047.5791500002742,
-        "p95_ms": 3048.251199999868
+        "median_ms": 2867.837349999718,
+        "p95_ms": 2868.712100000266
       },
-      "makespan_s": 3.0629766000001837
+      "makespan_s": 2.884447899999941
     },
     {
       "status": "passed",
@@ -1842,8 +1842,8 @@
           "reservation_factor": 3
         },
         "memory": {
-          "rss_bytes": 66863104,
-          "private_bytes": 53366784
+          "rss_bytes": 66834432,
+          "private_bytes": 54153216
         },
         "current_python_bytes": null,
         "peak_python_bytes": null
@@ -1851,24 +1851,24 @@
       "provider_calls": 0,
       "body_hash_checked": true,
       "peak_python_bytes": null,
-      "sampled_peak_rss_bytes": 134471680,
-      "sampled_peak_private_bytes": 121085952,
+      "sampled_peak_rss_bytes": 134569984,
+      "sampled_peak_private_bytes": 121397248,
       "initial_memory": {
-        "rss_bytes": 63901696,
-        "private_bytes": 49635328
+        "rss_bytes": 64061440,
+        "private_bytes": 50069504
       },
-      "metadata_samples": 341,
+      "metadata_samples": 344,
       "small_latency": {
-        "samples": 341,
-        "median_ms": 7.793500000843778,
-        "p95_ms": 16.016100000342703
+        "samples": 344,
+        "median_ms": 4.68659999933152,
+        "p95_ms": 10.367200000473531
       },
       "large_latency": {
         "samples": 8,
-        "median_ms": 4530.027249998966,
-        "p95_ms": 7296.8317000013485
+        "median_ms": 3627.677550000044,
+        "p95_ms": 5813.552900001014
       },
-      "makespan_s": 7.314146400000027
+      "makespan_s": 5.828974500000186
     },
     {
       "status": "passed",
@@ -1895,8 +1895,8 @@
           "reservation_factor": 3
         },
         "memory": {
-          "rss_bytes": 67571712,
-          "private_bytes": 54480896
+          "rss_bytes": 66977792,
+          "private_bytes": 53387264
         },
         "current_python_bytes": null,
         "peak_python_bytes": null
@@ -1904,24 +1904,24 @@
       "provider_calls": 0,
       "body_hash_checked": true,
       "peak_python_bytes": null,
-      "sampled_peak_rss_bytes": 134688768,
-      "sampled_peak_private_bytes": 121724928,
+      "sampled_peak_rss_bytes": 134823936,
+      "sampled_peak_private_bytes": 121364480,
       "initial_memory": {
-        "rss_bytes": 64417792,
-        "private_bytes": 50511872
+        "rss_bytes": 64364544,
+        "private_bytes": 50069504
       },
-      "metadata_samples": 346,
+      "metadata_samples": 345,
       "small_latency": {
-        "samples": 346,
-        "median_ms": 6.569649999619287,
-        "p95_ms": 16.093800000817282
+        "samples": 345,
+        "median_ms": 4.569100001390325,
+        "p95_ms": 9.884200000669807
       },
       "large_latency": {
         "samples": 8,
-        "median_ms": 4560.423600000831,
-        "p95_ms": 6814.424599999256
+        "median_ms": 3585.850699999355,
+        "p95_ms": 5744.753499999206
       },
-      "makespan_s": 6.834762700000283
+      "makespan_s": 5.759183499998471
     },
     {
       "status": "passed",
@@ -1949,7 +1949,7 @@
         },
         "memory": {
           "rss_bytes": 67207168,
-          "private_bytes": 54079488
+          "private_bytes": 53923840
         },
         "current_python_bytes": null,
         "peak_python_bytes": null
@@ -1957,24 +1957,24 @@
       "provider_calls": 0,
       "body_hash_checked": true,
       "peak_python_bytes": null,
-      "sampled_peak_rss_bytes": 337244160,
-      "sampled_peak_private_bytes": 324374528,
+      "sampled_peak_rss_bytes": 337235968,
+      "sampled_peak_private_bytes": 324075520,
       "initial_memory": {
-        "rss_bytes": 64139264,
-        "private_bytes": 50032640
+        "rss_bytes": 64421888,
+        "private_bytes": 50040832
       },
-      "metadata_samples": 93,
+      "metadata_samples": 115,
       "small_latency": {
-        "samples": 93,
-        "median_ms": 4.81000000036147,
-        "p95_ms": 35.153900000295835
+        "samples": 115,
+        "median_ms": 9.388599999510916,
+        "p95_ms": 30.13689999897906
       },
       "large_latency": {
         "samples": 8,
-        "median_ms": 2643.059699999867,
-        "p95_ms": 2659.2595000001893
+        "median_ms": 2838.94594999947,
+        "p95_ms": 2839.347399998587
       },
-      "makespan_s": 2.6732699000003777
+      "makespan_s": 2.853705200001059
     },
     {
       "status": "passed",
@@ -1993,8 +1993,8 @@
         "invalid": 0,
         "body_memory": null,
         "memory": {
-          "rss_bytes": 66424832,
-          "private_bytes": 53334016
+          "rss_bytes": 66056192,
+          "private_bytes": 52965376
         },
         "current_python_bytes": null,
         "peak_python_bytes": null
@@ -2002,24 +2002,24 @@
       "provider_calls": 0,
       "body_hash_checked": true,
       "peak_python_bytes": null,
-      "sampled_peak_rss_bytes": 336912384,
-      "sampled_peak_private_bytes": 324108288,
+      "sampled_peak_rss_bytes": 336101376,
+      "sampled_peak_private_bytes": 324296704,
       "initial_memory": {
-        "rss_bytes": 63778816,
-        "private_bytes": 49717248
+        "rss_bytes": 63332352,
+        "private_bytes": 49397760
       },
-      "metadata_samples": 118,
+      "metadata_samples": 119,
       "small_latency": {
-        "samples": 118,
-        "median_ms": 11.16205000107584,
-        "p95_ms": 31.93960000135121
+        "samples": 119,
+        "median_ms": 9.963000000425382,
+        "p95_ms": 29.097200000251178
       },
       "large_latency": {
         "samples": 8,
-        "median_ms": 3200.79264999913,
-        "p95_ms": 3201.9034000004467
+        "median_ms": 2929.040600000917,
+        "p95_ms": 2929.7685000001366
       },
-      "makespan_s": 3.216998699999749
+      "makespan_s": 2.9441444000003685
     },
     {
       "status": "passed",
@@ -2038,7 +2038,7 @@
         "invalid": 0,
         "body_memory": null,
         "memory": {
-          "rss_bytes": 66555904,
+          "rss_bytes": 66179072,
           "private_bytes": 53391360
         },
         "current_python_bytes": null,
@@ -2047,24 +2047,24 @@
       "provider_calls": 0,
       "body_hash_checked": true,
       "peak_python_bytes": null,
-      "sampled_peak_rss_bytes": 337182720,
-      "sampled_peak_private_bytes": 324820992,
+      "sampled_peak_rss_bytes": 347979776,
+      "sampled_peak_private_bytes": 334721024,
       "initial_memory": {
-        "rss_bytes": 63680512,
-        "private_bytes": 49229824
+        "rss_bytes": 63369216,
+        "private_bytes": 49438720
       },
       "metadata_samples": 119,
       "small_latency": {
         "samples": 119,
-        "median_ms": 11.220499998671585,
-        "p95_ms": 29.522999999244348
+        "median_ms": 9.937299999364768,
+        "p95_ms": 28.732000000672997
       },
       "large_latency": {
         "samples": 8,
-        "median_ms": 3115.6067000001713,
-        "p95_ms": 3116.2567999999737
+        "median_ms": 2991.0319999999047,
+        "p95_ms": 2991.5736000002653
       },
-      "makespan_s": 3.1306647999990673
+      "makespan_s": 3.007181999999375
     },
     {
       "status": "passed",
@@ -2091,8 +2091,8 @@
           "reservation_factor": 3
         },
         "memory": {
-          "rss_bytes": 67219456,
-          "private_bytes": 54497280
+          "rss_bytes": 67149824,
+          "private_bytes": 54706176
         },
         "current_python_bytes": null,
         "peak_python_bytes": null
@@ -2100,24 +2100,24 @@
       "provider_calls": 0,
       "body_hash_checked": true,
       "peak_python_bytes": null,
-      "sampled_peak_rss_bytes": 336953344,
-      "sampled_peak_private_bytes": 324145152,
+      "sampled_peak_rss_bytes": 336973824,
+      "sampled_peak_private_bytes": 324239360,
       "initial_memory": {
-        "rss_bytes": 64278528,
-        "private_bytes": 50311168
+        "rss_bytes": 64339968,
+        "private_bytes": 50360320
       },
-      "metadata_samples": 107,
+      "metadata_samples": 117,
       "small_latency": {
-        "samples": 107,
-        "median_ms": 6.052200000340235,
-        "p95_ms": 32.37929999886546
+        "samples": 117,
+        "median_ms": 5.915200001254561,
+        "p95_ms": 29.287399998793262
       },
       "large_latency": {
         "samples": 8,
-        "median_ms": 2918.46170000008,
-        "p95_ms": 2919.292599999608
+        "median_ms": 2874.644950000402,
+        "p95_ms": 2875.6620999993174
       },
-      "makespan_s": 2.9339365999985603
+      "makespan_s": 2.8898668000001635
     },
     {
       "status": "passed",
@@ -2144,8 +2144,8 @@
           "reservation_factor": 3
         },
         "memory": {
-          "rss_bytes": 66498560,
-          "private_bytes": 52183040
+          "rss_bytes": 67145728,
+          "private_bytes": 54280192
         },
         "current_python_bytes": null,
         "peak_python_bytes": null
@@ -2153,27 +2153,27 @@
       "provider_calls": 0,
       "body_hash_checked": true,
       "peak_python_bytes": null,
-      "sampled_peak_rss_bytes": 134524928,
-      "sampled_peak_private_bytes": 120283136,
+      "sampled_peak_rss_bytes": 134721536,
+      "sampled_peak_private_bytes": 121585664,
       "initial_memory": {
-        "rss_bytes": 64053248,
-        "private_bytes": 49975296
+        "rss_bytes": 64221184,
+        "private_bytes": 50413568
       },
-      "metadata_samples": 353,
+      "metadata_samples": 346,
       "small_latency": {
-        "samples": 353,
-        "median_ms": 4.949699999997392,
-        "p95_ms": 10.832600000867387
+        "samples": 346,
+        "median_ms": 4.708599999503349,
+        "p95_ms": 10.329200000342098
       },
       "large_latency": {
         "samples": 8,
-        "median_ms": 3928.001050000603,
-        "p95_ms": 6199.485700000878
+        "median_ms": 3620.845450000161,
+        "p95_ms": 5825.925099999949
       },
-      "makespan_s": 6.216250099998433
+      "makespan_s": 5.840662599999632
     }
   ],
   "harness_sha256": "f667cc7b6b7e004c60b32c3bdb2135bace903192a2daf2b863640c138d0c5cc7",
-  "finished_at": "2026-11-17T07:45:01.639628+00:00",
+  "finished_at": "2026-11-17T08:26:37.719154+00:00",
   "sources_unchanged": true
 }

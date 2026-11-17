@@ -77,18 +77,19 @@ timing. SHA-256 checked every assembled body. These measure body assembly only.
 
 | Body | Python allocation peak: 1.9.3 / 1.10.0 | Assembly median: 1.9.3 / 1.10.0 |
 | --- | ---: | ---: |
-| 1 MiB / known length | 2.00 / 1.19 MiB | 0.91 / 0.45 ms |
-| 1 MiB / unknown length | 2.00 / 1.19 MiB | 0.85 / 0.47 ms |
-| 4 MiB / known length | 8.01 / 4.19 MiB | 3.45 / 1.75 ms |
-| 4 MiB / unknown length | 8.01 / 4.19 MiB | 3.36 / 2.42 ms |
-| 16 MiB / known length | 32.03 / 16.19 MiB | 14.30 / 7.09 ms |
-| 16 MiB / unknown length | 32.03 / 16.19 MiB | 14.73 / 12.07 ms |
-| 32 MiB / known length | 64.06 / 32.19 MiB | 29.84 / 14.39 ms |
-| 32 MiB / unknown length | 64.06 / 32.19 MiB | 29.61 / 35.24 ms |
+| 1 MiB / known length | 2.00 / 1.19 MiB | 0.46 / 0.39 ms |
+| 1 MiB / unknown length | 2.00 / 1.19 MiB | 0.40 / 0.51 ms |
+| 4 MiB / known length | 8.01 / 4.19 MiB | 3.04 / 1.58 ms |
+| 4 MiB / unknown length | 8.01 / 4.19 MiB | 3.43 / 2.53 ms |
+| 16 MiB / known length | 32.03 / 16.19 MiB | 14.29 / 6.29 ms |
+| 16 MiB / unknown length | 32.03 / 16.19 MiB | 14.41 / 11.85 ms |
+| 32 MiB / known length | 64.06 / 32.19 MiB | 29.48 / 14.23 ms |
+| 32 MiB / unknown length | 64.06 / 32.19 MiB | 29.89 / 34.24 ms |
 
 At 32 MiB with a known length, peak Python allocation halved and assembly time
 fell by about 52%. The unknown-length 32 MiB case retained half the memory but
-was about 19% slower in this final run. Smaller unknown-length cases improved.
+was about 15% slower in this final run. Unknown-length 4/16 MiB cases improved,
+while 1 MiB was about 0.1 ms slower.
 Allocator behavior and Windows background load affect timings; there is no
 universal latency improvement for every body shape.
 
@@ -104,14 +105,14 @@ were separate. Values below are medians of three per-run peaks/p95s/makespans.
 
 | Runtime | Python allocation peak, MiB | Sampled worker RSS peak, MiB | Short-call p95, ms | Whole batch, s |
 | --- | ---: | ---: | ---: | ---: |
-| 1.9.3 | 289.20 | 326.52 | 31.94 | 3.22 |
-| 1.10.0, admission off | 259.99 | 322.05 | 35.15 | 2.93 |
-| 1.10.0, default budget | 67.24 | 128.73 | 16.02 | 6.83 |
+| 1.9.3 | 289.16 | 322.11 | 28.73 | 2.94 |
+| 1.10.0, admission off | 260.04 | 321.97 | 29.29 | 2.88 |
+| 1.10.0, default budget | 67.18 | 128.95 | 10.33 | 5.83 |
 
 Default admission lowered Python allocation peak by about 77% and sampled worker
-RSS by about 61%, with two large requests admitted at a time. Short-call p95 was
-about 50% lower, while the whole batch took about twice as long. Admission-off
-1.10.0 kept eight-way parallelism and finished about 9% sooner in this control;
+RSS by about 60%, with two large requests admitted at a time. Short-call p95 was
+about 64% lower, while the whole batch took about twice as long. Admission-off
+1.10.0 kept eight-way parallelism and finished about 2% sooner in this control;
 sampled RSS was similar to 1.9.3. RSS is a sampled process measure and Python
 allocation peaks are not interchangeable with RAM savings in arbitrary workloads.
 
@@ -125,15 +126,15 @@ Times include the entire loopback upload, synthetic validation and first output.
 
 | Scenario | Median, ms: 1.9.3 / 1.10.0 | p95, ms: 1.9.3 / 1.10.0 |
 | --- | ---: | ---: |
-| Short request | 5.065 / 5.170 | 7.346 / 7.795 |
-| English history | 9.231 / 9.163 | 14.968 / 15.754 |
-| Russian history | 13.143 / 12.857 | 23.175 / 22.947 |
-| Tool outputs | 12.757 / 12.767 | 23.526 / 23.698 |
-| Tool outputs / gzip rejected | 12.289 / 12.240 | 21.055 / 23.378 |
-| Thirty images | 24.152 / 22.954 | 41.873 / 36.051 |
+| Short request | 4.427 / 4.482 | 8.836 / 8.719 |
+| English history | 8.280 / 8.411 | 22.140 / 20.043 |
+| Russian history | 11.852 / 11.727 | 27.601 / 24.903 |
+| Tool outputs | 11.186 / 11.362 | 26.944 / 28.783 |
+| Tool outputs / gzip rejected | 10.637 / 10.842 | 24.481 / 26.360 |
+| Thirty images | 21.230 / 20.460 | 43.280 / 44.908 |
 
-The short-request median increased by roughly 0.1 ms; larger fixtures ranged from
-almost unchanged to about 1.2 ms lower for thirty images. These figures do not
+The short-request median increased by roughly 0.06 ms; larger fixture medians
+ranged from about 0.2 ms higher to 0.8 ms lower for thirty images. These figures do not
 measure Internet/model generation and do not establish a major speedup for normal
 small calls. The main change is less retained/peak memory and clearer diagnosis.
 

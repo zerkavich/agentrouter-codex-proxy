@@ -2712,7 +2712,12 @@ class _BodyBudget:
         entry = (future, weight)
         self.queue.append(entry)
         try:
-            return await asyncio.wait_for(asyncio.shield(future), BODY_BUDGET_WAIT_S)
+            # Python 3.10 wait_for can lose external cancellation when its inner
+            # future completes concurrently. wait preserves that cancellation.
+            done, _ = await asyncio.wait((future,), timeout=BODY_BUDGET_WAIT_S)
+            if not done:
+                raise asyncio.TimeoutError()
+            return future.result()
         except BaseException as error:
             # Cancellation after admission also returns its reserved credits.
             if future.done() and not future.cancelled():
